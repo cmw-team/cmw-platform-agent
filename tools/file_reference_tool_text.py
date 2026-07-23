@@ -1,17 +1,19 @@
 """
-Shared copy for the **``filename``** parameter, reused by record **document** and **image** tools.
+Shared copy text used by record document / image tool ``@tool`` descriptions.
 
-Only phrasing that applies in more than one module lives here; tool-specific @tool ``description=``
-strings are next to that tool in ``tool_record_document`` / ``tool_record_image``; generic field reads: ``tool_get_record_values`` (``get_record_values``).
+After the 2026-07 cleanup, ``tools.templates_tools.tool_record_document`` and
+``tools.templates_tools.tool_record_image`` were removed (along with their
+``platform_record_document`` / ``platform_record_image`` helpers). The constants
+below have no live consumers in the current tool surface but are kept as inert
+text for any future record-document / record-image tool that may be reintroduced.
+
+Generic field reads continue to use ``tool_get_record_values`` (``get_record_values``).
 """
 
 # Pydantic ``Field(description=...)`` for **filename** (e.g. **attach** tools).
 CHAT_FILENAME_DESCRIPTION = (
     "Which file to work with. Use the **name with extension** the user put in this chat, **or** "
-    "the **``filename``** value returned from **fetch_record_document_file** or **fetch_record_"
-    "image_file** when the file was loaded from a record. Use that same value when you call "
-    "another file or read tool. If the task is to use a public file on the web, a **https** (or **"
-    "http**) **URL** is fine."
+    "a **https** (or **http**) **URL** to a public file on the web."
 )
 
 # Reused when composing the **fetch** @tool description in each record tool module.

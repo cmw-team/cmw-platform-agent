@@ -152,8 +152,6 @@ _GRADIO_RESOURCES_DIR = Path(__file__).resolve().parent.parent / "resources"
 
 # Try absolute imports first (works from root directory)
 try:
-    from langsmith import traceable
-
     from agent_ng.debug_streamer import (
         LogCategory,
         LogLevel,
@@ -191,8 +189,6 @@ except ImportError as e1:
     _logger.warning("Absolute imports failed: %s", e1)
     # Fallback to relative imports (when running as module)
     try:
-        from langsmith import traceable
-
         from .debug_streamer import (
             LogCategory,
             LogLevel,
@@ -2004,11 +2000,6 @@ def main():
     import argparse
     import os
     import sys
-
-    # Setup LangSmith environment first
-    from agent_ng.langsmith_config import setup_langsmith_environment
-
-    setup_langsmith_environment()
 
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="CMW Platform Agent")
