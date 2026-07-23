@@ -28,15 +28,6 @@ from langchain_core.tools import BaseTool
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 
-# LangSmith tracing
-try:
-    from langsmith import traceable
-    LANGSMITH_AVAILABLE = True
-except ImportError:
-    LANGSMITH_AVAILABLE = False
-    def traceable(func):
-        return func
-
 try:
     from .tool_invocation import (
         invoke_agent_tool_blocking,

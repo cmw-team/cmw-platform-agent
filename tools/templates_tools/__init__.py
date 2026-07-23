@@ -1,69 +1,21 @@
-# ruff: noqa: N999
 """Templates Tools Package.
 
-This package contains tools for managing Comindware Platform templates and records
-and listing template attributes.
+After the 2026-07 cleanup, this package exposes only ``get_record_values``
+(a generic record field read via the platform's ``GetPropertyValues`` API).
+
+All other per-entity tools have been removed:
+
+* Attribute CRUD (text, boolean, datetime, ...) — moved out of scope.
+* Application / template / ontology tools — moved out of scope.
+* Button / dataset / form / toolbar / record-template tools — moved out of scope.
+* Record document / image attach and fetch — moved out of scope.
+* Form builders and helpers — moved out of scope.
+
+The HTTP transport that backs ``get_record_values`` is now inlined in
+``tool_get_record_values.py`` (uses ``tools.requests_._post_request``); the
+previous helper module ``tools.platform_record_document`` is gone.
 """
 
-# Import all tool functions
-from tools.templates_tools.tool_copy_form import copy_form_from_template
-from tools.templates_tools.tool_create_edit_record import create_edit_record
-from tools.templates_tools.tool_create_form_from_attributes import (
-    create_form_from_attributes,
-)
 from tools.templates_tools.tool_get_record_values import get_record_values
-from tools.templates_tools.tool_list_attributes import list_attributes
-from tools.templates_tools.tool_list_records import list_template_records
-from tools.templates_tools.tool_record_document import (
-    attach_file_to_record_document_attribute,
-    fetch_record_document_file,
-)
-from tools.templates_tools.tool_record_image import (
-    attach_file_to_record_image_attribute,
-    fetch_record_image_file,
-)
-from tools.templates_tools.tools_button import (
-    archive_unarchive_button,
-    edit_or_create_button,
-    get_button,
-    list_buttons,
-)
-from tools.templates_tools.tools_dataset import (
-    edit_or_create_dataset,
-    get_dataset,
-    list_datasets,
-)
-from tools.templates_tools.tools_form import edit_or_create_form, get_form, list_forms
-from tools.templates_tools.tools_record_template import edit_or_create_record_template
-from tools.templates_tools.tools_toolbar import (
-    edit_or_create_toolbar,
-    get_toolbar,
-    list_toolbars,
-)
 
-__all__ = [
-    "archive_unarchive_button",
-    "attach_file_to_record_document_attribute",
-    "attach_file_to_record_image_attribute",
-    "copy_form_from_template",
-    "create_edit_record",
-    "create_form_from_attributes",
-    "edit_or_create_button",
-    "edit_or_create_dataset",
-    "edit_or_create_form",
-    "edit_or_create_record_template",
-    "edit_or_create_toolbar",
-    "fetch_record_document_file",
-    "fetch_record_image_file",
-    "get_button",
-    "get_dataset",
-    "get_form",
-    "get_record_values",
-    "get_toolbar",
-    "list_attributes",
-    "list_buttons",
-    "list_datasets",
-    "list_forms",
-    "list_template_records",
-    "list_toolbars",
-]
+__all__ = ["get_record_values"]

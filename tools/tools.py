@@ -70,56 +70,23 @@ try:
 except ImportError:  # pragma: no cover
     get_current_session_id = None  # type: ignore[assignment]
 
-from .applications_tools.tool_list_applications import list_applications
-
-# Applications tools
-from .applications_tools.tool_list_templates import list_templates
-from .attributes_tools.tool_archive_or_unarchive_attribute import (
-    archive_or_unarchive_attribute,
-)
-
-# Attributes tools - Utility functions
-from .attributes_tools.tool_delete_attribute import delete_attribute
-from .attributes_tools.tool_get_attribute import get_attribute
-from .attributes_tools.tools_account_attribute import edit_or_create_account_attribute
-from .attributes_tools.tools_boolean_attribute import edit_or_create_boolean_attribute
-
-# Attributes tools - Other attribute types
-from .attributes_tools.tools_datetime_attribute import (
-    edit_or_create_date_time_attribute,
-)
-from .attributes_tools.tools_decimal_attribute import edit_or_create_numeric_attribute
-from .attributes_tools.tools_document_attribute import edit_or_create_document_attribute
-from .attributes_tools.tools_drawing_attribute import edit_or_create_drawing_attribute
-from .attributes_tools.tools_duration_attribute import edit_or_create_duration_attribute
-from .attributes_tools.tools_enum_attribute import edit_or_create_enum_attribute
-from .attributes_tools.tools_image_attribute import edit_or_create_image_attribute
-from .attributes_tools.tools_record_attribute import edit_or_create_record_attribute
-from .attributes_tools.tools_role_attribute import edit_or_create_role_attribute
-
-# Attributes tools - Text attributes
-from .attributes_tools.tools_text_attribute import edit_or_create_text_attribute
+# NOTE: 2026-07 cleanup removed tools.applications_tools, tools.attributes_tools,
+# and most of tools.templates_tools (only tool_get_record_values remains in the
+# subpackage). The tool functions previously re-exported here
+# (list_applications, list_templates, archive_or_unarchive_attribute,
+# delete_attribute, get_attribute, edit_or_create_<type>_attribute,
+# list_attributes, list_template_records, edit_or_create_record_template) are
+# no longer imported; the @tool definitions below remain for
+# external/standalone use but are intentionally NOT bound to the agent
+# (see agent_ng.llm_manager.LLMManager.get_tools).
 
 # Datetime tool
 from .get_datetime import get_current_datetime
 
-# Expose Comindware Platform tools from all directories
-# Platform entity URL resolver
-from .platform_entity_resolver import resolve_entity
-
-# Templates tools
-from .templates_tools.tool_list_attributes import list_attributes
-from .templates_tools.tool_list_records import list_template_records
-
-# Templates tools
-from .templates_tools.tools_record_template import edit_or_create_record_template
-
-# Transfer tools
-from .transfer_tools.tool_export_application import export_application
-from .transfer_tools.tool_import_application import import_application
-
-# NOTE: Browser automation tools (tools/browser_tools.py, agent_ng/browser_session.py)
-# are intentionally NOT bound to the agent. They are kept for external/standalone use.
+# NOTE: 2026-07 cleanup removed tools.platform_entity_resolver, so the
+# ``resolve_entity`` import was dropped. ``tools/browser_tools`` and
+# ``agent_ng/browser_session`` are intentionally NOT bound to the agent;
+# they remain for external/standalone use.
 # See .agents/skills/cmw-platform/SKILL.md section "Browser Automation"
 # Global configuration for search tools
 SEARCH_LIMIT = 5  # Max results for Tavily, Wikipedia, Arxiv search tools

@@ -268,7 +268,6 @@ Files are automatically registered in a session-isolated registry and accessible
 
 - Real-time debug output with categorized logging
 - Performance metrics and usage analytics
-- LangSmith tracing integration for observability
 
 ## Technical Stack
 
@@ -277,11 +276,6 @@ Files are automatically registered in a session-isolated registry and accessible
 - **LangChain** - AI framework with native conversation management
 - **Gradio** - Modern web UI with modular tab architecture
 - **Pydantic** - Data validation and serialization
-
-### Observability
-
-- **LangSmith** - Primary tracing and debugging
-- **Langfuse** - Alternative observability platform
 
 ### Key Libraries
 

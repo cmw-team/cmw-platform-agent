@@ -47,13 +47,11 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 try:
-    from .langsmith_config import get_langsmith_config, get_openai_wrapper
     from .logging_config import _parse_bool
     from .provider_adapters import MistralWrapper, is_mistral_model
     from .utils import ensure_valid_answer
 except ImportError:
     try:
-        from agent_ng.langsmith_config import get_langsmith_config, get_openai_wrapper
         from agent_ng.logging_config import _parse_bool
         from agent_ng.provider_adapters import MistralWrapper, is_mistral_model
         from agent_ng.utils import ensure_valid_answer
@@ -479,7 +477,7 @@ class LLMManager:
                 temperature=float(model_config.get("temperature", 0)),
                 max_tokens=int(model_config.get("max_tokens", 2048)),
             )
-            # LangSmith tracing is handled via @traceable decorators
+            # LangSmith tracing was removed in 2026-07 cleanup
             self._log_initialization(
                 f"Successfully initialized {config.name} - {model_config['model']}"
             )
@@ -601,7 +599,7 @@ class LLMManager:
                 max_tokens=model_config.get("max_tokens", 2048),
                 streaming=True,  # Enable streaming
             )
-            # LangSmith tracing handled via @traceable decorators
+            # LangSmith tracing was removed in 2026-07 cleanup
             self._log_initialization(
                 f"Successfully initialized {config.name} - {model_config['model']}"
             )
@@ -1152,52 +1150,20 @@ class LLMManager:
         self._invalidate_tools_cache()
 
     def get_tools(self) -> list[Any]:
-        """Get all available tools from tools module (avoiding duplicates) - cached"""
-        # Return cached tools if available
+        """Get all available tools (native + MCP), avoiding duplicates. Cached.
+
+        After the 2026-07 cleanup, the native tool surface is intentionally
+        minimal: only ``tool_get_record_values`` from ``tools.templates_tools``.
+        ``tools.applications_tools`` and ``tools.attributes_tools`` were
+        removed entirely. Root-level ``tools.tools`` and friends are not bound.
+        """
         if hasattr(self, "_cached_tools"):
             return self._cached_tools
 
-        tool_list = []
-        tool_names = set()  # Track tool names to avoid duplicates
+        tool_list: list[Any] = []
+        tool_names: set[str] = set()
 
-        # Load tools from main tools module (primary source)
-        try:
-            import tools.tools as tools_module
-
-            self._load_tools_from_module(
-                tools_module, tool_list, "tools.tools", tool_names
-            )
-        except ImportError:
-            self._log_initialization("Could not import tools.tools module", "WARNING")
-
-        # Load tools from attributes_tools submodule (only if not already loaded)
-        try:
-            import tools.attributes_tools as attributes_tools_module
-
-            self._load_tools_from_module(
-                attributes_tools_module, tool_list, "tools.attributes_tools", tool_names
-            )
-        except ImportError:
-            self._log_initialization(
-                "Could not import tools.attributes_tools module", "WARNING"
-            )
-
-        # Load tools from applications_tools submodule (only if not already loaded)
-        try:
-            import tools.applications_tools as applications_tools_module
-
-            self._load_tools_from_module(
-                applications_tools_module,
-                tool_list,
-                "tools.applications_tools",
-                tool_names,
-            )
-        except ImportError:
-            self._log_initialization(
-                "Could not import tools.applications_tools module", "WARNING"
-            )
-
-        # Load tools from templates_tools submodule (only if not already loaded)
+        # Native: tool_get_record_values (templates_tools/tool_get_record_values.py)
         try:
             import tools.templates_tools as templates_tools_module
 
@@ -1221,7 +1187,6 @@ class LLMManager:
         if is_mcp_enabled():
             tool_list = merge_tools(tool_list, get_cached_mcp_tools())
 
-        # Cache the tools list
         self._cached_tools = tool_list
         return tool_list
 

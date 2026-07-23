@@ -4,8 +4,10 @@ This skill supports **two distinct localization workflows**. Choose the right on
 
 | Goal | Workflow | Key tools |
 |------|----------|-----------|
-| Rename system names / aliases safely | **Workflow A — Alias Rename** | `export_application`, `get_ontology_objects`, `update_object_property`, `tool_localize` |
+| Rename system names / aliases safely | **Workflow A — Alias Rename** | `export_application`, `get_ontology_objects`, `update_object_property` (manual; `localize_aliases` tool removed) |
 | Translate Russian UI strings to English | **Workflow B — UI Text Translation** | `harvest_strings.py`, `build_translations.py`, `apply_translations.py`, `update_csv.py` |
+
+> **Note (2026-07):** the `localize_aliases` / `tool_localize` tool was removed from `tools/localization_tools/`. Follow the manual Phases 1–9 in this document; the wrapper around them is no longer available.
 
 ⚠️ **These are different operations.** Alias rename changes internal identifiers; UI text translation changes user-facing labels. Never mix them.
 

@@ -50,18 +50,6 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
-# LangSmith tracing
-try:
-    from langsmith import traceable
-
-    LANGSMITH_AVAILABLE = True
-except ImportError:
-    LANGSMITH_AVAILABLE = False
-
-    def traceable(func):
-        return func
-
-
 from langchain_core.runnables import (
     RunnablePassthrough,
     RunnableLambda,
@@ -94,7 +82,6 @@ try:
     from .stats_manager import get_stats_manager
     from .utils import ensure_valid_answer, parse_env_bool
 
-    # LangSmith tracing is now handled via direct imports and environment variables
     print("✅ Successfully imported all modules using relative imports")
 except ImportError as e1:
     print(f"❌ Relative import failed: {e1}")
@@ -110,7 +97,6 @@ except ImportError as e1:
         from agent_ng.stats_manager import get_stats_manager
         from agent_ng.utils import ensure_valid_answer, parse_env_bool
 
-        # LangSmith tracing is now handled via direct imports and environment variables
         print("✅ Successfully imported all modules using absolute imports")
     except ImportError as e2:
         print(f"❌ Absolute import failed: {e2}")

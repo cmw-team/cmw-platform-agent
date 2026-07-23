@@ -1,7 +1,10 @@
 """LangChain tool: read attribute values for one record (GetPropertyValues).
 
-The HTTP call is implemented in :func:`tools.platform_record_document.fetch_record_field_values`
-so the same client is reused (e.g. document id resolution) and stays in one place.
+After the 2026-07 cleanup, ``tools.platform_record_document`` was removed.
+The HTTP call is inlined here using the lower-level
+:func:`tools.requests_._post_request` transport so the response shape
+(``{success, status_code, data: {record_id: {attr: value, ...}}, error}``)
+matches the previous tool contract exactly.
 """
 
 from __future__ import annotations
@@ -11,7 +14,60 @@ from typing import Any
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field, field_validator
 
-from tools.platform_record_document import fetch_record_field_values
+from tools.requests_ import _post_request
+
+GET_PROPERTY_VALUES = (
+    "api/public/system/TeamNetwork/ObjectService/GetPropertyValues"
+)
+
+
+def _unwrap_webapi_payload(raw: Any) -> Any:
+    """Unwrap ``{"response": X}`` from WebApi-style JSON."""
+    if isinstance(raw, dict) and "response" in raw:
+        return raw["response"]
+    return raw
+
+
+def _fetch_record_field_values(
+    record_id: str,
+    attribute_system_names: list[str],
+) -> dict[str, Any]:
+    """
+    Load selected attribute values for a record (TeamNetwork GetPropertyValues).
+
+    Returns:
+        success, data: ``{ record_id: { attr_alias: value, ... } }`` or error.
+    """
+    body: dict[str, Any] = {
+        "objects": [record_id],
+        "propertiesByAlias": list(attribute_system_names),
+    }
+    result = _post_request(body, GET_PROPERTY_VALUES)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "status_code": int(result.get("status_code", 0) or 0),
+            "data": None,
+            "error": result.get("error") or "Request failed",
+        }
+    raw = result.get("raw_response")
+    inner = _unwrap_webapi_payload(raw)
+    if not isinstance(inner, dict):
+        return {
+            "success": False,
+            "status_code": int(result.get("status_code", 0) or 0),
+            "data": None,
+            "error": "Unexpected GetPropertyValues response shape",
+        }
+    row = inner.get(record_id, {})
+    if not isinstance(row, dict):
+        row = {}
+    return {
+        "success": True,
+        "status_code": int(result.get("status_code", 0) or 0),
+        "data": {record_id: row},
+        "error": None,
+    }
 
 
 class GetRecordValuesSchema(BaseModel):
@@ -45,7 +101,7 @@ def get_record_values(
     Get current values for one or more attributes on a record (by system name). Use before fetch
     or attach, or whenever you need the live property values for a record.
     """
-    return fetch_record_field_values(record_id, attribute_system_names)
+    return _fetch_record_field_values(record_id, attribute_system_names)
 
 
 __all__ = [

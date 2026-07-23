@@ -24,7 +24,8 @@ def visible_plain_text_from_message(msg: BaseMessage) -> str:
     ``content_blocks``; block-only extraction would wrongly yield empty text.
     """
     parts: list[str] = []
-    for block in msg.content_blocks:
+    content_blocks = getattr(msg, "content_blocks", None) or []
+    for block in content_blocks:
         if not isinstance(block, dict):
             continue
         if block.get("type") != "text":

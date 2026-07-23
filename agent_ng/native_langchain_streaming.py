@@ -67,27 +67,6 @@ from .tool_deduplicator import get_deduplicator
 from .tool_invocation import ainvoke_agent_tool, tool_requires_async_invocation
 
 # LangSmith tracing
-try:
-    from langsmith import traceable
-
-    LANGSMITH_AVAILABLE = True
-except ImportError:
-    LANGSMITH_AVAILABLE = False
-
-    def traceable(func):
-        return func
-
-
-# Optional Langfuse integration
-try:
-    # Local, soft dependency wrapper
-    from .langfuse_config import get_langfuse_callback_handler
-
-    _LANGFUSE_AVAILABLE = True
-except Exception:
-    _LANGFUSE_AVAILABLE = False
-
-
 @dataclass
 class StreamingEvent:
     """Represents a streaming event"""
@@ -417,7 +396,6 @@ class NativeLangChainStreaming:
             self._logger.debug("Failed to switch to fallback model: %s", exc)
             return False
 
-    @traceable
     async def stream_agent_response(
         self,
         agent,
@@ -713,28 +691,8 @@ class NativeLangChainStreaming:
                     "Starting streaming loop for iteration %d", iteration
                 )
 
-                # Stream LLM response - tracing handled by @traceable on stream_agent_response
-                # Attach optional Langfuse callback handler when available
+                # Stream LLM response
                 runnable_config = None
-                if _LANGFUSE_AVAILABLE:
-                    try:
-                        handler = get_langfuse_callback_handler()
-                        if handler is not None:
-                            # Add Langfuse session id to metadata as per docs
-                            # https://langfuse.com/docs/observability/features/sessions
-                            session_id = getattr(agent, "session_id", None)
-                            metadata = (
-                                {"langfuse_session_id": session_id}
-                                if session_id
-                                else {}
-                            )
-                            runnable_config = {
-                                "callbacks": [handler],
-                                "metadata": metadata,
-                            }
-                    except Exception as exc:
-                        self._logger.debug("Failed to get runnable config: %s", exc)
-                        runnable_config = None
 
                 # Get LLM with tools fresh for this iteration to reflect any fallback switch
                 llm_with_tools = agent.llm_instance.llm

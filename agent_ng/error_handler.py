@@ -28,8 +28,15 @@ import numpy as np
 from typing import Dict, Optional, Any, Tuple, List
 from dataclasses import dataclass
 from enum import Enum
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+try:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+
+    _SKLEARN_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    TfidfVectorizer = None  # type: ignore[assignment,misc]
+    cosine_similarity = None  # type: ignore[assignment]
+    _SKLEARN_AVAILABLE = False
 
 
 class ErrorType(Enum):
@@ -89,7 +96,11 @@ class ErrorHandler:
         self.failure_reset_time = 3600  # 1 hour
 
         # Initialize vector similarity components
-        self.vectorizer = TfidfVectorizer(max_features=1000, stop_words='english')
+        self.vectorizer = (
+            TfidfVectorizer(max_features=1000, stop_words='english')
+            if _SKLEARN_AVAILABLE
+            else None
+        )
         self.error_patterns = self._initialize_error_patterns()
         self.similarity_threshold = 0.7
 
@@ -204,13 +215,19 @@ class ErrorHandler:
         }
 
     def _calculate_cosine_similarity(self, text1: str, text2: str) -> float:
-        """Calculate cosine similarity between two texts."""
+        """Calculate cosine similarity between two texts.
+
+        Returns ``0.0`` (no fuzzy match) when scikit-learn is not installed;
+        direct substring checks in the callers still cover common error patterns.
+        """
+        if not _SKLEARN_AVAILABLE or self.vectorizer is None:
+            return 0.0
         try:
             # Fit and transform both texts
             texts = [text1, text2]
             tfidf_matrix = self.vectorizer.fit_transform(texts)
             similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
-            return similarity
+            return float(similarity)
         except Exception:
             return 0.0
 
