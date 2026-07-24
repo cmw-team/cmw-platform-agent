@@ -171,7 +171,7 @@ class AgentConfig:
 
     def print_config(self):
         """Print current configuration"""
-        print("🔧 Agent Configuration:")
+        print("Agent Configuration:")
         print(f"  Language: {self.settings.default_language}")
         print(f"  Port: {self.settings.default_port}")
         print(f"  Provider: {self.settings.default_provider}")
@@ -227,3 +227,50 @@ def get_ui_download_prep_after_stream() -> bool:
     ``1``/``true``/``yes``/``on`` to enable.
     """
     return env_flag_true("CMW_UI_DOWNLOAD_PREP_AFTER_STREAM")
+
+
+def get_skills_dir() -> Path:
+    """Return the directory where the agent looks for ``<name>/SKILL.md`` skills.
+
+    Environment ``CMW_SKILLS_DIR`` overrides the default ``<repo>/.agents/skills``.
+    The directory is allowed to be missing — the agent then behaves as if no
+    skills are installed.
+    """
+    override = (os.getenv("CMW_SKILLS_DIR") or "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    # <repo> is the parent of the agent_ng/ package.
+    return (Path(__file__).parent.parent / ".agents" / "skills").resolve()
+
+
+def get_skills_enabled() -> bool:
+    """Master switch for the skill runtime.
+
+    Environment ``CMW_SKILLS_ENABLED``: any non-truthy value (including the
+    default absence of the variable) means skills are **enabled**; the variable
+    is opt-out. Set ``CMW_SKILLS_ENABLED=false`` (or ``0``/``no``/``off``) to
+    disable.
+    """
+    raw = (os.getenv("CMW_SKILLS_ENABLED") or "").strip().lower()
+    if not raw:
+        return True
+    return raw not in ("0", "false", "no", "off")
+
+
+def get_skill_max_body_chars() -> int:
+    """Soft cap on a skill's body when loaded into context.
+
+    Environment ``CMW_SKILL_MAX_BODY_CHARS``: integer, default ``60000``.
+    """
+    raw = (os.getenv("CMW_SKILL_MAX_BODY_CHARS") or "").strip()
+    if not raw:
+        return 60_000
+    try:
+        return int(raw)
+    except ValueError as exc:
+        logging.getLogger(__name__).warning(
+            "Invalid CMW_SKILL_MAX_BODY_CHARS=%r, using default 60000: %s",
+            raw,
+            exc,
+        )
+        return 60_000
