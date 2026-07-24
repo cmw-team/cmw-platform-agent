@@ -56,9 +56,9 @@ except ImportError:
         from agent_ng.provider_adapters import MistralWrapper, is_mistral_model
         from agent_ng.utils import ensure_valid_answer
     except ImportError as e:
-        print("💥 CRITICAL ERROR: Cannot import required modules in llm_manager!")
+        print("CRITICAL ERROR: Cannot import required modules in llm_manager!")
         print(f"   Import failed: {e}")
-        print("🔧 Please check that all dependencies are installed and modules exist")
+        print("Please check that all dependencies are installed and modules exist")
         msg = f"Failed to import required modules in llm_manager: {e}"
         raise ImportError(msg)
 

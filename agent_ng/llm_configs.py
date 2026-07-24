@@ -557,6 +557,14 @@ def get_default_llm_configs() -> dict[LLMProvider, LLMConfig]:
             # (RUB per 1 USD, e.g. 90) for USD conversion in the billing pipeline.
             models=[
                 {
+                    "model": "qwen/qwen3-8b",
+                    "token_limit": 41000,
+                    "max_tokens": 8000,
+                    "temperature": 0,
+                    "force_tools": True,
+                    "vision_support": True,
+                },
+                {
                     "model": "qwen/qwen3.6-plus",
                     "token_limit": 1000000,
                     "max_tokens": 65536,

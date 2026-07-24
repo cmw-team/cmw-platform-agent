@@ -126,6 +126,96 @@ def _handle_example_select(example: gr.SelectData) -> dict:
     )
 
 
+def _skill_popup_initial_choices() -> list[tuple[str, str]]:
+    """Return ``[(label, value)]`` for every installed skill at process start.
+
+    Used by the chat tab to seed the slash-command popup Dropdown. The
+    list is re-read on every keystroke so skills added after startup are
+    picked up automatically.
+    """
+    try:
+        from agent_ng.agent_config import get_skills_dir, get_skills_enabled
+        from agent_ng.skills.skill_popup import build_popup_choices
+
+        if not get_skills_enabled():
+            return []
+        return build_popup_choices(get_skills_dir())
+    except Exception:
+        logging.getLogger(__name__).exception("Failed to seed skill popup choices")
+        return []
+
+
+def _extract_text(value: Any) -> str:
+    """Extract the user text from any value Gradio might pass us.
+
+    Gradio's ``MultimodalTextbox.preprocess`` converts the frontend dict into a
+    ``MultimodalData`` Pydantic model. Older Gradio versions and tests pass a
+    plain ``dict`` or a string. We handle all three so the handler is robust.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        return str(value.get("text", "") or "")
+    # Pydantic model or any Gradio value object — read ``.text`` if present.
+    text_attr = getattr(value, "text", None)
+    if text_attr is not None:
+        return str(text_attr)
+    return str(value)
+
+
+def _skill_popup_input_handler(value: Any) -> gr.update:
+    """Decide whether to show the skill popup and what choices to offer.
+
+    Returns a ``gr.update(...)`` object so the existing ``Dropdown`` output
+    receives both ``choices`` and ``visible`` in one go. Returning a new
+    ``gr.Dropdown(...)`` instance would be routed through ``postprocess``
+    and silently fail (it expects a value, not a component).
+    """
+    try:
+        from agent_ng.agent_config import get_skills_dir, get_skills_enabled
+        from agent_ng.skills.skill_popup import (
+            build_popup_choices,
+            filter_popup_choices,
+            should_show_popup,
+        )
+
+        text = _extract_text(value)
+        logging.getLogger(__name__).debug(
+            "Skill popup handler: value_type=%s, text=%r",
+            type(value).__name__,
+            text[:60],
+        )
+        if not get_skills_enabled():
+            return gr.update(visible=False, choices=[])
+        all_choices = build_popup_choices(get_skills_dir())
+        if not should_show_popup(text):
+            return gr.update(choices=all_choices, visible=False)
+        filtered = filter_popup_choices(all_choices, text)
+        return gr.update(choices=filtered, visible=True)
+    except Exception:
+        logging.getLogger(__name__).exception("Skill popup handler failed")
+        return gr.update(visible=False, choices=[])
+
+
+def _skill_popup_select_handler(value: str) -> tuple[gr.update, gr.update]:
+    """Insert the chosen skill into the textbox and hide the popup.
+
+    Returns ``(gr.update(...) for the textbox, gr.update(...) for the popup)``
+    so Gradio routes them to the right output components.
+    """
+    text = (value or "").strip()
+    if text:
+        textbox_value = {"text": f"/{text} ", "files": []}
+    else:
+        textbox_value = {"text": "", "files": []}
+    return (
+        gr.update(value=textbox_value),
+        gr.update(visible=False),
+    )
+
+
 class ChatTab:
     """Chat tab component with interface and quick actions"""
 
@@ -200,6 +290,26 @@ class ChatTab:
             examples=chatbot_examples,
             elem_id="chatbot-main",
             elem_classes=["chatbot-card"],
+        )
+
+        # Slash-command popup: appears when the user starts a message with ``/``.
+        # Lists every installed skill as ``<name> — <description>``. Click inserts
+        # ``/<name> `` into the textbox and hides the popup.
+        # Mounted ABOVE the input row so the dropdown appears right above the
+        # text the user is typing. A small hint line sits above the popup.
+        gr.Markdown(
+            self._get_translation("skill_popup_hint_message"),
+            elem_classes=["skill-popup-hint"],
+        )
+        self.components["skill_popup"] = gr.Dropdown(
+            choices=_skill_popup_initial_choices(),
+            value=None,
+            visible=False,
+            show_label=False,
+            container=False,
+            elem_id="skill-popup",
+            elem_classes=["skill-popup-dropdown"],
+            filterable=False,
         )
 
         with gr.Row():
@@ -617,6 +727,28 @@ class ChatTab:
             outputs=[self.components["msg"]],
             api_visibility="private",
         )
+
+        # Slash-command popup: show/hide as the user types in the message box.
+        # The handler re-reads the skill registry every keystroke so new skills
+        # appear without an app restart. Uses ``.change()`` for reliability in
+        # Gradio 6 with ``MultimodalTextbox``.
+        if self.components.get("skill_popup") is not None:
+            self.components["msg"].change(
+                fn=_skill_popup_input_handler,
+                inputs=[self.components["msg"]],
+                outputs=[self.components["skill_popup"]],
+                queue=False,
+                api_visibility="private",
+            )
+            self.components["skill_popup"].select(
+                fn=_skill_popup_select_handler,
+                inputs=[self.components["skill_popup"]],
+                outputs=[
+                    self.components["msg"],
+                    self.components["skill_popup"],
+                ],
+                api_visibility="private",
+            )
 
         # Trigger UI updates after chat events
         self._setup_chat_event_triggers()
@@ -1798,6 +1930,54 @@ class ChatTab:
         else:
             # Fallback for non-dict values
             message = str(multimodal_value) if multimodal_value else ""
+
+        # Slash-command preprocessor: /<skill-name> ... in the user text is
+        # stripped, the named skill is activated for the session, and unknown
+        # skills produce a friendly inline error without an LLM call.
+        try:
+            from agent_ng.agent_config import get_skills_dir, get_skills_enabled
+            from agent_ng.skills.chat_preprocessor import preprocess_chat_input
+
+            skills_dir = get_skills_dir()
+            skills_enabled = get_skills_enabled()
+            verdict = preprocess_chat_input(
+                message, skills_dir, enabled=skills_enabled
+            )
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "Skill preprocessor failed; passing message through"
+            )
+            verdict = None
+
+        if verdict is not None:
+            if verdict.error is not None:
+                # Render the error directly in chat; no LLM call.
+                history = list(history or [])
+                history.append({"role": "assistant", "content": verdict.error})
+                yield history, ""
+                return
+            if verdict.skill_activated is not None:
+                # Activate the skill on the session agent (if any) and forward
+                # only the suffix to the LLM.
+                try:
+                    _main_app = getattr(self, "main_app", None)
+                    _session_mgr = (
+                        getattr(_main_app, "session_manager", None)
+                        if _main_app
+                        else None
+                    )
+                    if _session_mgr is not None:
+                        _session_id = _session_mgr.get_session_id(request)
+                        _agent = _session_mgr.get_session_agent(_session_id)
+                        if _agent is not None and hasattr(
+                            _agent, "activate_skill"
+                        ):
+                            _agent.activate_skill(verdict.skill_activated)
+                except Exception:
+                    logging.getLogger(__name__).exception(
+                        "Failed to activate skill on session agent"
+                    )
+                message = verdict.user_text
 
         # Get the original stream handler
         stream_handler = self.event_handlers.get("stream_message")

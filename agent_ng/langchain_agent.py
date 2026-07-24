@@ -82,9 +82,9 @@ try:
     from .stats_manager import get_stats_manager
     from .utils import ensure_valid_answer, parse_env_bool
 
-    print("✅ Successfully imported all modules using relative imports")
+    print("Successfully imported all modules using relative imports")
 except ImportError as e1:
-    print(f"❌ Relative import failed: {e1}")
+    print(f"Relative import failed: {e1}")
     try:
         from agent_ng.llm_manager import get_llm_manager, LLMInstance
         from agent_ng.langchain_memory import (
@@ -97,11 +97,11 @@ except ImportError as e1:
         from agent_ng.stats_manager import get_stats_manager
         from agent_ng.utils import ensure_valid_answer, parse_env_bool
 
-        print("✅ Successfully imported all modules using absolute imports")
+        print("Successfully imported all modules using absolute imports")
     except ImportError as e2:
-        print(f"❌ Absolute import failed: {e2}")
-        print("💥 CRITICAL ERROR: Cannot import required modules!")
-        print("🔧 Please check:")
+        print(f"Absolute import failed: {e2}")
+        print("CRITICAL ERROR: Cannot import required modules!")
+        print("Please check:")
         print(
             "   1. All dependencies are installed: pip install -r requirements_ng.txt"
         )
@@ -183,6 +183,14 @@ class CmwAgent:
         self.tools = []
         self.conversation_chains = {}
 
+        # Skill runtime state (per-agent, mirrors a per-session concept for
+        # the in-process single-session case). The chat tab calls
+        # ``activate_skill`` when the user types ``/<name>``; the LLM may
+        # also call the ``load_skill`` tool, which delegates here.
+        from .skills.skill_session import SkillSession
+
+        self.skill_session = SkillSession()
+
         # Agent state
         self.is_initialized = False
 
@@ -246,13 +254,37 @@ class CmwAgent:
             await self.llm_manager.load_mcp_tools_if_enabled()
             self.tools = self.llm_manager.get_tools()
 
+            # Register the three skill tools so the LLM can load / unload
+            # skills on its own. They delegate to ``self.activate_skill`` /
+            # ``self.deactivate_skill`` so slash-command and tool-call paths
+            # share a single state.
+            try:
+                from .agent_config import (
+                    get_skill_max_body_chars,
+                    get_skills_dir,
+                    get_skills_enabled,
+                )
+                from .skills.skill_tool import build_skill_tools
+
+                if get_skills_enabled():
+                    skill_tools = build_skill_tools(
+                        get_skills_dir(),
+                        max_chars=get_skill_max_body_chars(),
+                        session=self.skill_session,
+                    )
+                    self.tools.extend(skill_tools)
+            except Exception as exc:
+                logging.getLogger(__name__).warning(
+                    "Skill tools not registered: %s", exc
+                )
+
             self.is_initialized = True
             print(
-                f"✅ LangChain Agent initialized with {self.llm_instance.provider} ({self.llm_instance.model_name}) and {len(self.tools)} tools"
+                f"LangChain Agent initialized with {self.llm_instance.provider} ({self.llm_instance.model_name}) and {len(self.tools)} tools"
             )
 
         except Exception as e:
-            print(f"❌ Agent initialization failed: {e}")
+            print(f"Agent initialization failed: {e}")
             self.is_initialized = False
 
     def _load_system_prompt(self) -> str:
@@ -263,6 +295,65 @@ class CmwAgent:
 
         with open(prompt_path, "r", encoding="utf-8") as f:
             return f.read()
+
+    def get_effective_system_prompt(self) -> str:
+        """Return the system prompt with the skill section appended.
+
+        The skill section lists available skills (name + one-line description)
+        so the LLM can decide to call ``load_skill`` when relevant. The skill
+        bodies themselves are injected per turn via ``get_skill_system_messages``.
+        """
+        from .agent_config import get_skills_dir, get_skills_enabled
+        from .prompts import build_skill_prompt_section
+
+        if not get_skills_enabled():
+            return self.system_prompt
+        section = build_skill_prompt_section(get_skills_dir())
+        if not section:
+            return self.system_prompt
+        return f"{self.system_prompt}\n\n{section}"
+
+    def activate_skill(self, name: str) -> str:
+        """Load a skill's body and mark it active for this agent's session.
+
+        Returns the body (capped) so callers can also use the return value
+        as the user-facing confirmation.
+        """
+        from .agent_config import (
+            get_skill_max_body_chars,
+            get_skills_dir,
+        )
+        from .skills.skill_loader import load_skill_body
+        from .skills.skill_registry import list_skill_summaries
+
+        skills_dir = get_skills_dir()
+        try:
+            loaded = load_skill_body(
+                skills_dir, name, max_chars=get_skill_max_body_chars()
+            )
+        except LookupError as exc:
+            available = list_skill_summaries(skills_dir)
+            return (
+                f"Unknown skill: {name!r}. Available: "
+                f"{', '.join(available) if available else '_(none)_'}. ({exc})"
+            )
+
+        self.skill_session.activate(loaded.name, loaded.body)
+        return f"# Active skill: {loaded.name}\n\n{loaded.body}"
+
+    def deactivate_skill(self, name: str) -> str:
+        """Remove a skill from the active session."""
+        if self.skill_session.deactivate(name):
+            return f"Deactivated skill: {name}"
+        return f"Skill {name!r} is not active."
+
+    def get_skill_system_messages(self) -> list[tuple[str, str]]:
+        """Return ``(role, content)`` pairs for all active skill bodies.
+
+        Callers prepend these to the LLM invocation on every turn so the
+        active skills stay in context for the lifetime of the session.
+        """
+        return self.skill_session.as_system_messages()
 
     def _get_conversation_chain(self, conversation_id: str = "default"):
         """Get or create conversation chain for a conversation"""

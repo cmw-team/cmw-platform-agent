@@ -2,6 +2,7 @@
 
 import json
 import os
+from pathlib import Path
 from typing import Any
 
 
@@ -109,5 +110,38 @@ Guidelines:
         system_context=system_context_section,
         target_tokens=target_tokens,
         target_words=target_words,
+    )
+
+
+def build_skill_prompt_section(skills_dir: Path | str | None) -> str:
+    """Build a ``## Available skills`` block for the system prompt.
+
+    Returns an empty string when there are no skills, so callers can append
+    unconditionally. The block is intentionally short — only ``name`` and
+    one-line ``description`` per skill, plus a brief usage hint. Skill bodies
+    are loaded on demand by the ``load_skill`` tool.
+    """
+    if skills_dir is None:
+        return ""
+    root = Path(skills_dir)
+    if not root.exists():
+        return ""
+
+    # Import lazily so prompts.py stays importable in narrow test contexts.
+    from .skills.skill_registry import list_skill_summaries
+
+    lines = list_skill_summaries(root)
+    if not lines:
+        return ""
+
+    body = "\n".join(lines)
+    return (
+        "## Available skills\n\n"
+        "The following skills are installed. To use one, either type "
+        "`/<skill-name> <message>` in chat, or call the `load_skill` tool "
+        "when you judge the skill is needed. The skill body will be loaded "
+        "into context for the rest of the session. Use `deactivate_skill` to "
+        "remove a skill and free its tokens.\n\n"
+        f"{body}\n"
     )
 

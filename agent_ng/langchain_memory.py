@@ -78,7 +78,7 @@ except ImportError as e1:
         from agent_ng.llm_manager import get_llm_manager, LLMInstance
         from agent_ng.utils import ensure_valid_answer
     except ImportError as e2:
-        print(f"💥 CRITICAL ERROR: Cannot import required modules in langchain_memory!")
+        print(f"CRITICAL ERROR: Cannot import required modules in langchain_memory!")
         print(f"   Relative import failed: {e1}")
         print(f"   Absolute import failed: {e2}")
         raise ImportError(f"Failed to import required modules in langchain_memory. Relative: {e1}, Absolute: {e2}")

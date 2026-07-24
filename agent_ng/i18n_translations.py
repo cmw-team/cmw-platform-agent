@@ -76,7 +76,10 @@ RUSSIAN_TRANSLATIONS = {
     # Chat interface
     "chat_label": "Диалог с агентом",
     "message_label": "Ваше сообщение",
-    "message_placeholder": "Введите ваше сообщение...",
+    "message_placeholder": "Введите сообщение или /<навык>...",
+    "skill_popup_label": "Команды навыков",
+    "skill_popup_hint": "Выберите навык — он загрузится в контекст.",
+    "skill_popup_hint_message": "💡 Введите `/` для выбора навыка",
     "send_button": "Отправить",
     "stop_button": "⏹️ Остановить",
     "clear_button": "Очистить диалог",
@@ -446,7 +449,10 @@ ENGLISH_TRANSLATIONS = {
     # Chat interface
     "chat_label": "Conversation with the Agent",
     "message_label": "Your Message",
-    "message_placeholder": "Type your message here",
+    "message_placeholder": "Type a message or /<skill>...",
+    "skill_popup_label": "Skill commands",
+    "skill_popup_hint": "Pick a skill — it will be loaded into context.",
+    "skill_popup_hint_message": "💡 Type `/` to pick a skill",
     "send_button": "Send",
     "stop_button": "⏹️ Stop",
     "clear_button": "Clear conversation",

@@ -255,6 +255,17 @@ For platform tasks: consult **OpenAPI** in `cmw_open_api/` and KB MCP first, the
 
 **Growing platform skills:** Reusable API and browser recipes belong in this repo (`.agents/skills/cmw-platform*` and `references/` — see [cmw-platform skill §9](.agents/skills/cmw-platform/SKILL.md#9-growing-platform-skills)). Per-instance migration progress and audits stay in `{instance_progress_dir}` — see [Where findings belong](#where-findings-belong-repo-boundary) under Documentation Guidelines.
 
+### Skill runtime (this repo's agent)
+
+The LangChain + Gradio + FastAPI agent consumes the `.agents/skills/<name>/SKILL.md` tree at runtime. Skills are activated on demand via:
+
+- Slash command in chat: `/<skill-name> <message>` (e.g. `/cmw-platform list apps`).
+- LLM calling the `load_skill(name)` tool when it judges the skill is needed.
+
+System-prompt always shows a one-line `## Available skills` index (name + description). Each session keeps the loaded skill body as a `SystemMessage` block re-attached on every turn. Bodies are capped (`CMW_SKILL_MAX_BODY_CHARS`, default 60 000) and oversized skills expose `references/` via `load_skill_reference(skill, path)`. Master switch: `CMW_SKILLS_ENABLED=false` (registry empty, no tools, slash commands reply "Skills disabled").
+
+Source-of-truth design + tests: [docs/skills/20260724_skill_runtime_design.md](docs/skills/20260724_skill_runtime_design.md). Runtime: `agent_ng/skills/`.
+
 ### Key Dependencies
 
 - Source of truth: `requirements.txt` (versions may change over time).
