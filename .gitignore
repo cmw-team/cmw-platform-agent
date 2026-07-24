@@ -30,4 +30,4 @@ docs/cmw_admin_pages.md
 docs/_scratch/*
 !docs/_scratch/README.md
 .scratch/*
-
+docs/*

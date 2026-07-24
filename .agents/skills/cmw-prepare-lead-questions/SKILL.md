@@ -1,12 +1,6 @@
 ---
 name: cmw-prepare-lead-questions
-description: >-
-  Адаптирует 10 квалификационных вопросов Comindware под конкретного лида
-  с учётом данных CRM, компании, отрасли, запроса и опционального транскрипта.
-  Используй этот skill, когда сейл просит подготовить, адаптировать, заменить
-  или персонализировать вопросы для первой встречи с лидом, проанализировать
-  карточку лида перед разговором или составить вопросы по запросу потенциального
-  клиента. Итог — ровно 10 вопросов без пояснений и лишнего текста.
+description: Адаптирует 10 квалификационных вопросов Comindware под конкретного лида с учётом данных CRM, компании, отрасли, запроса и опционального транскрипта. Используй этот skill, когда сейл просит подготовить, адаптировать, заменить или персонализировать вопросы для первой встречи с лидом, проанализировать карточку лида перед разговором или составить вопросы по запросу потенциального клиента. Итог — ровно 10 вопросов без пояснений и лишнего текста.
 ---
 
 # Подготовка квалификационных вопросов по лиду
@@ -29,14 +23,14 @@ description: >-
 
 Перед составлением вопросов прочитай:
 
-1. [references/brief-short.md](references/brief-short.md) — стартовые 10 вопросов.
-2. [references/question-bank.md](references/question-bank.md) — банк замен.
-3. [references/output-example.md](references/output-example.md) — эталон формата.
+1. [references\brief-short.md](references\brief-short.md) — стартовые 10 вопросов.
+2. [references\question-bank.md](references\question-bank.md) — банк замен.
+3. [references\output-example.md](references\output-example.md) — эталон формата.
 
 При использовании поиска дополнительно прочитай:
 
-- [references/knowledge-base-search.md](references/knowledge-base-search.md);
-- [references/web-research.md](references/web-research.md).
+- [references\knowledge-base-search.md](references\knowledge-base-search.md);
+- [references\web-research.md](references\web-research.md).
 
 Пользователь не обязан прикладывать брифы: используй встроенные references.
 
@@ -151,7 +145,7 @@ tool с выдуманными значениями. Используй данн
 ### Шаг 4. Исследуй компанию
 
 Используй `web_search` по правилам из
-[references/web-research.md](references/web-research.md).
+[references\web-research.md](references\web-research.md).
 
 Ищи только сведения, которые помогают:
 
@@ -163,7 +157,7 @@ tool с выдуманными значениями. Используй данн
 ### Шаг 5. При необходимости проверь базу знаний
 
 Используй `get_knowledge_base_articles` по правилам из
-[references/knowledge-base-search.md](references/knowledge-base-search.md),
+[references\knowledge-base-search.md](references\knowledge-base-search.md),
 если запрос содержит платформенные, процессные или интеграционные требования,
 и знание документации поможет задать более содержательный вопрос.
 
