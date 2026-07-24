@@ -449,16 +449,27 @@ class NativeLangChainStreaming:
             # Create messages list for LLM context
             messages = []
 
-            # Always add system message to LLM context (required for every call)
-            system_message = SystemMessage(content=agent.system_prompt)
+            # Always add system message to LLM context (required for every call).
+            # Use ``get_effective_system_prompt()`` so the LLM sees the
+            # ``## Available skills`` index listing every installed skill.
+            system_message = SystemMessage(content=agent.get_effective_system_prompt())
             messages.append(system_message)
+
+            # Inject active skill bodies as additional SystemMessages so the LLM
+            # has the instructions for every skill the user has activated. These
+            # ride along on every LLM call within the session but are NOT
+            # persisted to memory (the persistence loop below skips SystemMessage).
+            for _role, body in agent.get_skill_system_messages():
+                messages.append(SystemMessage(content=body))
 
             # Check if system message is already in memory, if not add it
             system_in_history = any(
                 isinstance(msg, SystemMessage) for msg in chat_history
             )
             if not system_in_history:
-                # Store system message in memory only once
+                # Store the effective system message in memory once. We store
+                # the same effective prompt (with skill index) so subsequent
+                # turns recognize the system role is already in place.
                 agent.memory_manager.add_message(conversation_id, system_message)
                 self._logger.debug("Added system message to memory (first time)")
             else:
