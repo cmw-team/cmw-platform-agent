@@ -359,7 +359,7 @@ class CmwAgent:
         """Get or create conversation chain for a conversation"""
         if conversation_id not in self.conversation_chains:
             self.conversation_chains[conversation_id] = create_conversation_chain(
-                self.llm_instance, self.tools, self.system_prompt, self
+                self.llm_instance, self.tools, self.get_effective_system_prompt(), self
             )
         return self.conversation_chains[conversation_id]
 
