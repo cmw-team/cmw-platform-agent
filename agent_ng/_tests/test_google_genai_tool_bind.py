@@ -42,4 +42,4 @@ def test_convert_to_genai_accepts_full_toolbelt_openai_dicts() -> None:
                 openai_tools.append(spec)
     out = convert_to_genai_function_declarations(openai_tools)
     assert out
-    assert out[0].function_declarations
+    assert out.function_declarations

@@ -1152,8 +1152,15 @@ class LLMManager:
     def get_tools(self) -> list[Any]:
         """Get all available tools (native + MCP), avoiding duplicates. Cached.
 
-        After the 2026-07 cleanup, the native tool surface is intentionally
-        minimal: only ``tool_get_record_values`` from ``tools.templates_tools``.
+        After the 2026-07 cleanup the native tool surface is intentionally
+        minimal:
+
+        * ``tool_get_record_values`` from ``tools.templates_tools`` — generic
+          field read on a record.
+        * ``extract_presentation_slides`` from ``tools.presentation_tools`` —
+          PPTX text extraction (see
+          ``.scratch/extract_presentation_slides-contract.md``).
+
         ``tools.applications_tools`` and ``tools.attributes_tools`` were
         removed entirely. Root-level ``tools.tools`` and friends are not bound.
         """
@@ -1173,6 +1180,20 @@ class LLMManager:
         except ImportError:
             self._log_initialization(
                 "Could not import tools.templates_tools module", "WARNING"
+            )
+
+        try:
+            import tools.presentation_tools as presentation_tools_module
+
+            self._load_tools_from_module(
+                presentation_tools_module,
+                tool_list,
+                "tools.presentation_tools",
+                tool_names,
+            )
+        except ImportError:
+            self._log_initialization(
+                "Could not import tools.presentation_tools module", "WARNING"
             )
 
         try:
