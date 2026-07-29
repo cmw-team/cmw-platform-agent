@@ -3,8 +3,8 @@
 
 Tool создаёт ровно один файл за вызов. Для каждой встречи модель вызывает его
 дважды: сначала с готовым summary, затем для полного транскрипта. Транскрипт
-загруженного медиа берётся из сессионного кэша, поэтому большой текст не нужно
-повторно помещать в аргументы tool.
+загруженного медиа берётся напрямую из сессионного кэша, поэтому модель не
+копирует и не изменяет большой исходный текст.
 """
 
 from __future__ import annotations
@@ -62,9 +62,9 @@ class SaveMeetingMarkdownSchema(BaseModel):
         default=None,
         description=(
             "Complete Markdown summary when artifact_type='summary'. For a "
-            "transcript of uploaded media, pass null because the full text is "
-            "read from the session cache. For a transcript pasted directly by "
-            "the user, pass the full text."
+            "transcript of uploaded media, pass null because the exact text "
+            "is read from the session cache. For a transcript pasted directly "
+            "by the user, pass the full source text."
         ),
     )
     agent: Annotated[Any | None, InjectedToolArg] = Field(
@@ -158,8 +158,8 @@ def _render_cached_transcript(
             f"{transcripts[0]}"
         )
 
-    # Для нескольких частей заголовки позволяют проверить порядок и источник,
-    # а сам текст каждой части помещается без сокращений и исправлений.
+    # Для нескольких частей заголовки сохраняют подтверждённый порядок и
+    # позволяют определить источник. Текст каждой части не изменяется.
     sections = ["# Полный транскрипт"]
     for index, (source_name, transcript) in enumerate(
         zip(source_names, transcripts, strict=True),
@@ -204,9 +204,13 @@ def _write_and_register(
         return _error("file_write_failed")
 
     try:
-        # register_file перемещает файл в Gradio cache и связывает логическое
-        # имя с текущей сессией. Именно generated_filename затем показывает UI.
-        agent.register_file(filename, temp_path)
+        register_generated = getattr(agent, "register_generated_file", None)
+        if callable(register_generated):
+            register_generated(filename, temp_path)
+        else:
+            # Совместимость с минимальными агентами и существующими тестовыми
+            # doubles, реализующими только общий файловый реестр.
+            agent.register_file(filename, temp_path)
     except Exception:
         with suppress(OSError):
             Path(temp_path).unlink(missing_ok=True)
@@ -235,7 +239,10 @@ def save_meeting_markdown(
     """
     if artifact_type not in {"summary", "transcript"}:
         return _error("invalid_artifact_type")
-    if agent is None or not callable(getattr(agent, "register_file", None)):
+    if agent is None or not (
+        callable(getattr(agent, "register_generated_file", None))
+        or callable(getattr(agent, "register_file", None))
+    ):
         return _error("invalid_agent")
 
     normalized_sources = _normalize_sources(source_names)

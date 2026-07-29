@@ -277,7 +277,7 @@ def setup_logging(force: bool | None = None) -> Logger:
     # Propagation
     root.propagate = _parse_bool(os.getenv("LOG_PROPAGATE"), True)
 
-    # Attach session-aware debug handlers (keeps Logs tab working)
+    # Attach session-aware debug handlers for diagnostics.
     try:
         # Try absolute import first
         try:

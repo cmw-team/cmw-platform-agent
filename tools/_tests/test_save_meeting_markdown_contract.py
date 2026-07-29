@@ -35,11 +35,16 @@ class FakeAgent:
         self.root = root
         self.session_id = session_id
         self.files: dict[str, str] = {}
+        self.generated_registrations: list[str] = []
 
     def register_file(self, name: str, path: str) -> None:
         destination = self.root / name
         shutil.move(path, destination)
         self.files[name] = str(destination)
+
+    def register_generated_file(self, name: str, path: str) -> None:
+        self.generated_registrations.append(name)
+        self.register_file(name, path)
 
     def get_file_path(self, name: str) -> str | None:
         return self.files.get(name)
@@ -109,16 +114,23 @@ def test_summary_is_saved_as_registered_markdown(tmp_path: Path) -> None:
 
     assert result["success"] is True
     assert result["generated_filename"] == "client-call_summary.md"
+    assert agent.generated_registrations == ["client-call_summary.md"]
     saved = Path(agent.get_file_path("client-call_summary.md") or "")
     assert saved.read_text(encoding="utf-8") == (
         "# Итоги встречи\n\nОбсудили процесс.\n"
     )
 
 
-def test_single_transcript_is_read_from_session_cache(tmp_path: Path) -> None:
+def test_single_transcript_is_saved_from_cache_without_model_copy(
+    tmp_path: Path,
+) -> None:
     cache = _cache_module()
     agent = FakeAgent(tmp_path)
-    cache.store_transcript(agent, "client-call.mp4", "Полный текст без изменений.")
+    cache.store_transcript(
+        agent,
+        "client-call.mp4",
+        "Первая тема разговора. Вторая тема разговора.",
+    )
 
     result = _invoke(
         artifact_type="transcript",
@@ -131,7 +143,7 @@ def test_single_transcript_is_read_from_session_cache(tmp_path: Path) -> None:
     assert result["generated_filename"] == "client-call_transcript.md"
     saved = Path(agent.get_file_path("client-call_transcript.md") or "")
     rendered = saved.read_text(encoding="utf-8")
-    assert "Полный текст без изменений." in rendered
+    assert "Первая тема разговора. Вторая тема разговора." in rendered
 
 
 def test_combined_transcript_preserves_declared_source_order(
@@ -154,6 +166,45 @@ def test_combined_transcript_preserves_declared_source_order(
     saved = Path(agent.get_file_path("combined_meeting_transcript.md") or "")
     rendered = saved.read_text(encoding="utf-8")
     assert rendered.index("Первая часть.") < rendered.index("Вторая часть.")
+
+
+def test_uploaded_transcript_ignores_model_content_and_uses_cached_text(
+    tmp_path: Path,
+) -> None:
+    cache = _cache_module()
+    agent = FakeAgent(tmp_path)
+    cache.store_transcript(agent, "client-call.mp4", "Первый текст.")
+
+    result = _invoke(
+        artifact_type="transcript",
+        source_names=["client-call.mp4"],
+        content="Изменённый моделью текст.",
+        agent=agent,
+    )
+
+    assert result["success"] is True
+    saved = Path(agent.get_file_path("client-call_transcript.md") or "")
+    rendered = saved.read_text(encoding="utf-8")
+    assert "Первый текст." in rendered
+    assert "Изменённый моделью текст." not in rendered
+
+
+def test_uploaded_transcript_does_not_require_content(
+    tmp_path: Path,
+) -> None:
+    cache = _cache_module()
+    agent = FakeAgent(tmp_path)
+    cache.store_transcript(agent, "client-call.mp4", "Полный текст.")
+
+    result = _invoke(
+        artifact_type="transcript",
+        source_names=["client-call.mp4"],
+        content=None,
+        agent=agent,
+    )
+
+    assert result["success"] is True
+    assert result["generated_filename"] == "client-call_transcript.md"
 
 
 def test_missing_cached_transcript_returns_safe_error(tmp_path: Path) -> None:

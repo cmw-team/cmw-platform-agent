@@ -19,8 +19,9 @@ Streaming layer (native_langchain_streaming.py):
 App rendering layer (app_ng_modular.py):
 - When ``metadata["file_attachment"]`` is present and the path resolves to an
   existing file, **two** messages are appended after the tool-called accordion:
-  1. ``{"role": "assistant", "content": {"path": <abs>, "alt_text": <name>}}``
-     — the inline file/image bubble Gradio 5 renders natively.
+  1. ``{"role": "assistant", "content": {"type": "file", "file":
+     {"path": <abs>, "orig_name": <name>}, "alt_text": <name>}}`` — the
+     inline file/image bubble Gradio renders with the logical download name.
   2. ``{"role": "assistant", "content": "📎 <display_name> — <size>"}``
      — a caption line matching the style used for user-uploaded files.
 - When the path does NOT exist on disk, skip both extra messages (no error).
@@ -40,7 +41,10 @@ Run:  pytest agent_ng/_tests/test_chat_file_rendering.py -v
 from __future__ import annotations
 
 import os
+from pathlib import Path
+import shutil
 from typing import TYPE_CHECKING, Any
+import uuid
 
 import pytest
 
@@ -60,7 +64,21 @@ _FIXTURE_PNG = "/tmp/x.png"  # noqa: S108
 _FIXTURE_BEAR = "/tmp/bear.png"  # noqa: S108
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from collections.abc import Iterator
+
+
+@pytest.fixture
+def tmp_path() -> Iterator[Path]:
+    """Use a workspace-local temp dir because the system pytest dir is locked."""
+    base = (Path.cwd() / ".scratch" / "pytest-chat-file-fixtures").resolve()
+    base.mkdir(parents=True, exist_ok=True)
+    path = base / uuid.uuid4().hex
+    path.mkdir()
+    try:
+        yield path
+    finally:
+        assert path.resolve().parent == base
+        shutil.rmtree(path)
 
 
 # ---------------------------------------------------------------------------#
@@ -184,6 +202,45 @@ class TestBuildFileAttachment:
         assert att is None
 
 
+class TestGeneratedFileRegistration:
+    """Generated-файлы сохраняют логическое имя для скачивания."""
+
+    def test_same_logical_name_uses_distinct_physical_directories(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from agent_ng.langchain_agent import CmwAgent
+        from tools.file_utils import FileUtils
+
+        cache = tmp_path / "cache"
+        monkeypatch.setattr(
+            FileUtils,
+            "get_gradio_cache_path",
+            staticmethod(lambda: str(cache)),
+        )
+        agent = CmwAgent.__new__(CmwAgent)
+        agent.session_id = "test-session"
+        agent.file_registry = {}
+        logical_name = "meeting_transcript.md"
+
+        first_source = tmp_path / "first.md"
+        first_source.write_text("first", encoding="utf-8")
+        agent.register_generated_file(logical_name, str(first_source))
+        first_registered = Path(agent.get_file_path(logical_name))
+
+        second_source = tmp_path / "second.md"
+        second_source.write_text("second", encoding="utf-8")
+        agent.register_generated_file(logical_name, str(second_source))
+        second_registered = Path(agent.get_file_path(logical_name))
+
+        assert first_registered.name == logical_name
+        assert second_registered.name == logical_name
+        assert first_registered != second_registered
+        assert first_registered.read_text(encoding="utf-8") == "first"
+        assert second_registered.read_text(encoding="utf-8") == "second"
+
+
 # ---------------------------------------------------------------------------#
 # Unit: app rendering helper                                                #
 # ---------------------------------------------------------------------------#
@@ -205,7 +262,11 @@ class TestBuildFileBubbles:
         # First bubble: inline file dict
         assert bubbles[0]["role"] == "assistant"
         assert bubbles[0]["content"] == {
-            "path": str(png.resolve()),
+            "type": "file",
+            "file": {
+                "path": str(png.resolve()),
+                "orig_name": "llm_image_abc.png",
+            },
             "alt_text": "llm_image_abc.png",
         }
         # Second bubble: caption line
@@ -246,7 +307,26 @@ class TestBuildFileBubbles:
         }
         bubbles = build_file_bubbles(att)
         assert len(bubbles) == 2
-        assert bubbles[0]["content"]["path"] == str(md.resolve())
+        assert bubbles[0]["content"]["file"]["path"] == str(md.resolve())
+        assert bubbles[0]["content"]["file"]["orig_name"] == "report.md"
+
+    def test_gradio_preserves_logical_download_name(self, tmp_path: Path) -> None:
+        from gradio.components.chatbot import Chatbot
+
+        report = tmp_path / "physical-cache-name.md"
+        report.write_text("# report", encoding="utf-8")
+        attachment = {
+            "path": str(report.resolve()),
+            "display_name": "meeting_summary.md",
+            "size_bytes": report.stat().st_size,
+        }
+
+        bubble = build_file_bubbles(attachment)[0]
+        processed = Chatbot().postprocess([bubble]).model_dump()
+
+        assert processed[0]["content"][0]["file"]["orig_name"] == (
+            "meeting_summary.md"
+        )
 
 
 # ---------------------------------------------------------------------------#
@@ -295,7 +375,7 @@ class TestAppRenderFileAttachment:
         assert len(history) == 3
         file_msg = history[1]
         assert file_msg["role"] == "assistant"
-        assert file_msg["content"]["path"] == str(png.resolve())
+        assert file_msg["content"]["file"]["path"] == str(png.resolve())
         caption_msg = history[2]
         assert "📎" in caption_msg["content"]
         assert "bear.png" in caption_msg["content"]

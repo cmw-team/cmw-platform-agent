@@ -249,24 +249,14 @@ class UIManager:
                         "✅ Connected DownloadsTab automatic download preparation"
                     )
 
-            # Wire end-of-turn event-driven refresh using existing chat events
+            # Wire end-of-turn event-driven statistics refresh.
             try:
                 update_all_ui_handler = event_handlers.get("update_all_ui")
                 stats_comp = self.components.get("stats_display")
-                logs_comp = self.components.get("logs_display")
-                token_budget_comp = self.components.get("token_budget_display")
-                update_token_budget_handler = event_handlers.get("update_token_budget")
-
                 chat_tab_instance = self.components.get("chattab_tab")
-                if (
-                    update_all_ui_handler
-                    and stats_comp
-                    and logs_comp
-                    and chat_tab_instance
-                ):
-                    refresh_outputs = [stats_comp, stats_comp, stats_comp, logs_comp]
+                if update_all_ui_handler and stats_comp and chat_tab_instance:
+                    refresh_outputs = [stats_comp, stats_comp, stats_comp]
 
-                    # After send (streaming) completes
                     if (
                         hasattr(chat_tab_instance, "streaming_event")
                         and chat_tab_instance.streaming_event
@@ -277,7 +267,6 @@ class UIManager:
                             api_visibility="private",
                         )
 
-                    # After submit completes
                     if (
                         hasattr(chat_tab_instance, "submit_event")
                         and chat_tab_instance.submit_event
@@ -288,7 +277,6 @@ class UIManager:
                             api_visibility="private",
                         )
 
-                    # Wire clear event to update stats/progress
                     if (
                         hasattr(chat_tab_instance, "clear_event")
                         and chat_tab_instance.clear_event
@@ -296,11 +284,10 @@ class UIManager:
                         chat_tab_instance.clear_event.then(
                             fn=update_all_ui_handler,
                             outputs=refresh_outputs,
-                            queue=False,  # Don't queue UI updates
+                            queue=False,
                             api_visibility="private",
                         )
 
-                    # Wire stop event to update stats/progress
                     if (
                         hasattr(chat_tab_instance, "stop_event")
                         and chat_tab_instance.stop_event
@@ -308,82 +295,33 @@ class UIManager:
                         chat_tab_instance.stop_event.then(
                             fn=update_all_ui_handler,
                             outputs=refresh_outputs,
-                            queue=False,  # Don't queue UI updates
+                            queue=False,
                             api_visibility="private",
                         )
 
                     logging.getLogger(__name__).debug(
-                        "✅ Event-driven UI refresh wired for end-of-turn updates, clear, and stop"
+                        "✅ Event-driven statistics refresh wired"
                     )
 
-                # Token budget refresh: wire separately to avoid changing update_all_ui signature
-                if (
-                    update_token_budget_handler
-                    and token_budget_comp
-                    and chat_tab_instance
-                ):
+                provider_sel = self.components.get("provider_model_selector")
+                sync_dd = event_handlers.get("sync_llm_dropdown_from_session")
+                if provider_sel and sync_dd and main_app:
+                    demo.load(
+                        fn=sync_dd, outputs=[provider_sel], api_visibility="private"
+                    )
                     if (
-                        hasattr(chat_tab_instance, "streaming_event")
-                        and chat_tab_instance.streaming_event
-                    ):
-                        chat_tab_instance.streaming_event.then(
-                            fn=update_token_budget_handler,
-                            outputs=[token_budget_comp],
-                            api_visibility="private",
-                        )
-                    if (
-                        hasattr(chat_tab_instance, "submit_event")
-                        and chat_tab_instance.submit_event
-                    ):
-                        chat_tab_instance.submit_event.then(
-                            fn=update_token_budget_handler,
-                            outputs=[token_budget_comp],
-                            api_visibility="private",
-                        )
-                    # Wire clear button to update token budget immediately (event-driven)
-                    # Chain to the existing clear button click event
-                    if (
-                        hasattr(chat_tab_instance, "clear_event")
+                        chat_tab_instance
+                        and hasattr(chat_tab_instance, "clear_event")
                         and chat_tab_instance.clear_event
                     ):
                         chat_tab_instance.clear_event.then(
-                            fn=update_token_budget_handler,
-                            outputs=[token_budget_comp],
-                            api_visibility="private",
-                        )
-                    # Wire stop button to update token budget immediately (event-driven)
-                    # Chain to the existing stop button click event
-                    if (
-                        hasattr(chat_tab_instance, "stop_event")
-                        and chat_tab_instance.stop_event
-                    ):
-                        chat_tab_instance.stop_event.then(
-                            fn=update_token_budget_handler,
-                            outputs=[token_budget_comp],
+                            fn=sync_dd,
+                            outputs=[provider_sel],
                             api_visibility="private",
                         )
                     logging.getLogger(__name__).debug(
-                        "✅ Token budget event-driven refresh wired for end-of-turn updates, clear button, and stop button"
+                        "✅ LLM dropdown synced from session on load and after clear"
                     )
-
-                    provider_sel = self.components.get("provider_model_selector")
-                    sync_dd = event_handlers.get("sync_llm_dropdown_from_session")
-                    if provider_sel and sync_dd and main_app:
-                        demo.load(
-                            fn=sync_dd, outputs=[provider_sel], api_visibility="private"
-                        )
-                        if (
-                            hasattr(chat_tab_instance, "clear_event")
-                            and chat_tab_instance.clear_event
-                        ):
-                            chat_tab_instance.clear_event.then(
-                                fn=sync_dd,
-                                outputs=[provider_sel],
-                                api_visibility="private",
-                            )
-                        logging.getLogger(__name__).debug(
-                            "✅ LLM dropdown synced from session on load and after clear"
-                        )
             except Exception as e:
                 logging.getLogger(__name__).warning(
                     f"Could not wire event-driven refresh: {e}"
@@ -398,10 +336,7 @@ class UIManager:
         return demo
 
     def _setup_auto_refresh(self, demo: gr.Blocks, event_handlers: dict[str, Callable]):
-        """Setup auto-refresh timers for status and logs - matches original behavior exactly"""
-        # Get handlers with validation
-        update_token_budget_handler = event_handlers.get("update_token_budget")
-        refresh_logs_handler = event_handlers.get("refresh_logs")
+        """Set up initial state loading and progress/statistics timers."""
         update_progress_handler = event_handlers.get("update_progress_display")
 
         # Single composite startup — all initial-state loads fire in one queue event
@@ -409,14 +344,6 @@ class UIManager:
         progress_comp = self.components.get("progress_display")
         _startup_fns: list[Callable] = []
         _startup_outputs: list = []
-
-        if "token_budget_display" in self.components and update_token_budget_handler:
-            _startup_fns.append(update_token_budget_handler)
-            _startup_outputs.append(self.components["token_budget_display"])
-
-        if "logs_display" in self.components and refresh_logs_handler:
-            _startup_fns.append(refresh_logs_handler)
-            _startup_outputs.append(self.components["logs_display"])
 
         if progress_comp and update_progress_handler:
             _startup_fns.append(update_progress_handler)
@@ -463,44 +390,10 @@ class UIManager:
                 "✅ Stats display auto-refresh timer set (%ss)", refresh_interval
             )
 
-        # Token budget updates - hybrid approach (immediate events + timer fallback)
-        # Token budget is updated through:
-        # - Immediate updates when budget_update events are emitted during streaming (pre-iteration, post-tool)
-        # - End-of-turn events (streaming_event.then(), submit_event.then(), clear_event.then(), stop_event.then(), model_switch_event.then())
-        # - Timer fallback (for edge cases where events might be missed)
-        # This matches Gradio 5 behavior where token budget updates immediately when budget snapshots are computed
-        # Budget snapshots are computed at "budget moments" (pre-iteration, post-tool), not on every chunk,
-        # so immediate updates are efficient and provide real-time feedback
-        if "token_budget_display" in self.components and event_handlers.get(
-            "update_token_budget"
-        ):
-            # Timer serves as fallback for edge cases, but primary updates happen immediately via budget_update events
-            token_budget_timer = gr.Timer(refresh_interval, active=True)
-            token_budget_timer.tick(
-                fn=event_handlers["update_token_budget"],
-                outputs=[self.components["token_budget_display"]],
-                api_visibility="private",
-            )
-            logging.getLogger(__name__).debug(
-                f"✅ Token budget timer set ({refresh_interval}s) - fallback for edge cases, primary updates via budget_update events"
-            )
-
         # LLM selection updates - no auto-refresh (explicit only)
         logging.getLogger(__name__).debug(
             "✅ LLM selection components will update only when explicitly triggered"
         )
-
-        # Logs updates
-        if "logs_display" in self.components and event_handlers.get("refresh_logs"):
-            logs_timer = gr.Timer(refresh_interval, active=True)
-            logs_timer.tick(
-                fn=event_handlers["refresh_logs"],
-                outputs=[self.components["logs_display"]],
-                api_visibility="private",
-            )
-            logging.getLogger(__name__).debug(
-                f"✅ Logs auto-refresh timer set ({refresh_interval}s)"
-            )
 
         # Stats updates - REMOVED timer-based refresh
         # Stats is now updated through events only (preferred approach):

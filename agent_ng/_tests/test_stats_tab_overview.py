@@ -14,11 +14,10 @@ def test_stats_tab_creates_single_stats_display_in_stats_card():
     assert tab.components["stats_display"].elem_id == "stats-display"
 
 
-def test_update_all_ui_returns_four_outputs(monkeypatch):
+def test_update_all_ui_returns_three_stats_outputs(monkeypatch):
     app = NextGenApp(language="en")
     app.tab_instances["stats"] = StatsTab(event_handlers={}, language="en")
 
     monkeypatch.setattr(app, "_refresh_stats", lambda _request=None: "s")
-    monkeypatch.setattr(app, "_refresh_logs", lambda _request=None: "l")
 
-    assert app.update_all_ui_components(None) == ("s", "s", "s", "l")
+    assert app.update_all_ui_components(None) == ("s", "s", "s")

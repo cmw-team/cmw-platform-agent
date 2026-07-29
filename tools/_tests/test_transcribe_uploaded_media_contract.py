@@ -54,6 +54,14 @@ def _client_module() -> Any:
     )
 
 
+def test_default_transcription_model_is_turbo() -> None:
+    """Default Polza route uses the agreed inexpensive transcription model."""
+    assert (
+        _tool_module().DEFAULT_TRANSCRIPTION_MODEL
+        == "openai/whisper-large-v3-turbo"
+    )
+
+
 def _invoke(source: str, agent: FakeAgent) -> dict[str, Any]:
     return _tool_module().transcribe_uploaded_media.func(source=source, agent=agent)
 
@@ -64,14 +72,15 @@ def _write_upload(tmp_path: Path, name: str = "meeting.mp4") -> Path:
     return upload
 
 
-def _patch_session_key(
+def _patch_environment_key(
     monkeypatch: pytest.MonkeyPatch,
     *,
-    value: str | None = "ui-polza-key",
+    value: str | None = "environment-polza-key",
 ) -> None:
-    module = _tool_module()
-    config = {"llm_provider_api_keys": {"polza": value}} if value else {}
-    monkeypatch.setattr(module, "get_session_config", lambda _session_id: config)
+    if value is None:
+        monkeypatch.delenv("POLZA_API_KEY", raising=False)
+    else:
+        monkeypatch.setenv("POLZA_API_KEY", value)
 
 
 def _patch_successful_pipeline(
@@ -112,7 +121,7 @@ def _patch_successful_pipeline(
             return chunk_results[len(self.calls) - 1]
 
     monkeypatch.setattr(module, "PolzaTranscriptionClient", FakeClient)
-    _patch_session_key(monkeypatch)
+    _patch_environment_key(monkeypatch)
     assert client_module.ChunkTranscription
     return FakeClient
 
@@ -229,7 +238,7 @@ def test_media_errors_are_mapped_separately(
         "probe_media",
         lambda _path: (_ for _ in ()).throw(exception_type("internal detail")),
     )
-    _patch_session_key(monkeypatch)
+    _patch_environment_key(monkeypatch)
 
     result = _invoke(upload.name, FakeAgent({upload.name: str(upload)}))
 
@@ -237,23 +246,7 @@ def test_media_errors_are_mapped_separately(
     assert result["error"]["code"] == expected_code
 
 
-def test_environment_api_key_is_never_used_as_fallback(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    upload = _write_upload(tmp_path)
-    monkeypatch.setenv("POLZA_API_KEY", "environment-secret")
-    module = _tool_module()
-    monkeypatch.setattr(module, "get_session_config", lambda _session_id: {})
-
-    result = _invoke(upload.name, FakeAgent({upload.name: str(upload)}))
-
-    assert result["success"] is False
-    assert result["error"]["code"] == "polza_api_key_missing"
-    assert "environment-secret" not in json.dumps(result)
-
-
-def test_api_key_is_read_from_current_session_polza_config(
+def test_environment_api_key_is_used_by_transcription_client(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -263,29 +256,46 @@ def test_api_key_is_read_from_current_session_polza_config(
         monkeypatch,
         chunk_results=[result_type("Готово", 5.0, 0.02)],
     )
-    session_ids: list[str] = []
+    monkeypatch.setenv("POLZA_API_KEY", "environment-secret")
 
-    def fake_config(session_id: str) -> dict[str, Any]:
-        session_ids.append(session_id)
-        return {"llm_provider_api_keys": {"polza": "session-secret"}}
-
-    monkeypatch.setattr(_tool_module(), "get_session_config", fake_config)
-    agent = FakeAgent({upload.name: str(upload)}, session_id="wanted-session")
-
-    result = _invoke(upload.name, agent)
+    result = _invoke(upload.name, FakeAgent({upload.name: str(upload)}))
 
     assert result["success"] is True
-    assert session_ids == ["wanted-session"]
-    assert fake_client.instances[-1].api_key == "session-secret"
+    assert fake_client.instances[-1].api_key == "environment-secret"
+    assert "environment-secret" not in json.dumps(result)
 
 
-def test_missing_session_key_returns_polza_api_key_missing(
+def test_ui_session_key_is_not_used_when_environment_key_is_missing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     upload = _write_upload(tmp_path)
-    module = _tool_module()
-    monkeypatch.setattr(module, "get_session_config", lambda _session_id: {})
+    result_type = _client_module().ChunkTranscription
+    _patch_successful_pipeline(
+        monkeypatch,
+        chunk_results=[result_type("Готово", 5.0, 0.02)],
+    )
+    monkeypatch.delenv("POLZA_API_KEY", raising=False)
+    monkeypatch.setattr(
+        _tool_module(),
+        "get_session_config",
+        lambda _session_id: {"llm_provider_api_keys": {"polza": "session-secret"}},
+        raising=False,
+    )
+    agent = FakeAgent({upload.name: str(upload)}, session_id="wanted-session")
+
+    result = _invoke(upload.name, agent)
+
+    assert result["success"] is False
+    assert result["error"]["code"] == "polza_api_key_missing"
+
+
+def test_missing_environment_key_returns_polza_api_key_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    upload = _write_upload(tmp_path)
+    _patch_environment_key(monkeypatch, value=None)
 
     result = _invoke(upload.name, FakeAgent({upload.name: str(upload)}))
 
@@ -314,6 +324,7 @@ def test_chunk_transcripts_are_joined_in_order_and_usage_is_summed(
     assert result["data"]["duration_seconds"] == pytest.approx(30.5)
     assert result["cost_rub"] == pytest.approx(0.30)
     assert result["data"]["chunk_count"] == 2
+    assert "capabilities" not in result["data"]
     assert [path.name for path in fake_client.instances[-1].calls] == [
         "chunk_001.mp3",
         "chunk_002.mp3",
@@ -403,7 +414,7 @@ def test_oversized_chunk_is_resplit_before_transcription(
     monkeypatch.setattr(module, "convert_to_mp3_chunks", fake_convert)
     monkeypatch.setattr(module, "split_mp3_chunk", fake_split)
     monkeypatch.setattr(module, "PolzaTranscriptionClient", FakeClient)
-    _patch_session_key(monkeypatch)
+    _patch_environment_key(monkeypatch)
 
     result = _invoke(upload.name, FakeAgent({upload.name: str(upload)}))
 
@@ -503,10 +514,10 @@ def test_errors_and_logs_redact_sensitive_values(
     upload = _write_upload(tmp_path)
     module = _tool_module()
     client_module = _client_module()
-    session_value = "ui-" + "test-value"
+    environment_value = "env-" + "test-value"
     base64_audio = "data:audio/mp3;base64,QUJDREVGRw=="
     raw = (
-        f"Authorization: Bearer {session_value} {base64_audio} {upload} Traceback"
+        f"Authorization: Bearer {environment_value} {base64_audio} {upload} Traceback"
     )
     monkeypatch.setattr(module, "probe_media", lambda _path: None)
 
@@ -524,17 +535,13 @@ def test_errors_and_logs_redact_sensitive_values(
 
     monkeypatch.setattr(module, "convert_to_mp3_chunks", fake_convert)
     monkeypatch.setattr(module, "PolzaTranscriptionClient", FailingClient)
-    monkeypatch.setattr(
-        module,
-        "get_session_config",
-        lambda _session_id: {"llm_provider_api_keys": {"polza": session_value}},
-    )
+    monkeypatch.setenv("POLZA_API_KEY", environment_value)
 
     result = _invoke(upload.name, FakeAgent({upload.name: str(upload)}))
     rendered = json.dumps(result, ensure_ascii=False) + caplog.text
 
     for forbidden in (
-        session_value,
+        environment_value,
         "Authorization",
         "base64",
         str(upload),

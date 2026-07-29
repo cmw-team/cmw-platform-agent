@@ -13,6 +13,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 import json
 import logging
+import re
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -27,6 +28,16 @@ REQUEST_TIMEOUT_SECONDS = 180
 MAX_ATTEMPTS = 3
 RETRYABLE_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})
 _LOGGER = logging.getLogger(__name__)
+_MAX_PROVIDER_ERROR_DETAIL_CHARS = 500
+_SENSITIVE_ERROR_MARKERS = (
+    "authorization",
+    "bearer ",
+    "api key",
+    "api_key",
+    "base64",
+    "data:audio",
+)
+_LONG_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9+/=_-]{64,}")
 
 
 class PolzaTranscriptionError(RuntimeError):
@@ -179,6 +190,57 @@ class PolzaTranscriptionClient:
         if not 200 <= status_code < 300:
             raise PolzaTranscriptionError("Polza не выполнила транскрибацию.")
 
+    def _safe_provider_error_detail(self, response: requests.Response) -> str:
+        """Извлечь диагностическое сообщение без секретов и аудиоданных.
+
+        Polza может возвращать причину HTTP 400 в нескольких JSON-полях.
+        Наружу допускается только короткая однострочная строка. Подозрительно
+        длинные значения, data URL, Base64, Authorization и сам API key
+        заменяются маркером, чтобы диагностика не раскрывала запрос.
+        """
+        try:
+            payload = response.json()
+        except (ValueError, TypeError):
+            return "<unavailable>"
+        if not isinstance(payload, Mapping):
+            return "<unavailable>"
+
+        candidates: list[Any] = []
+        error = payload.get("error")
+        if isinstance(error, Mapping):
+            candidates.extend(
+                error.get(field) for field in ("message", "detail", "code", "type")
+            )
+        else:
+            candidates.append(error)
+        candidates.extend(payload.get(field) for field in ("message", "detail"))
+
+        raw_detail = next(
+            (
+                candidate
+                for candidate in candidates
+                if isinstance(candidate, str) and candidate.strip()
+            ),
+            None,
+        )
+        if raw_detail is None:
+            return "<unavailable>"
+
+        detail = " ".join(raw_detail.split())
+        lowered = detail.lower()
+        contains_secret = bool(self._api_key and self._api_key in detail)
+        contains_sensitive_marker = any(
+            marker in lowered for marker in _SENSITIVE_ERROR_MARKERS
+        )
+        if (
+            len(detail) > _MAX_PROVIDER_ERROR_DETAIL_CHARS
+            or contains_secret
+            or contains_sensitive_marker
+            or _LONG_TOKEN_PATTERN.search(detail)
+        ):
+            return "<redacted>"
+        return detail
+
     @staticmethod
     def _number(
         value: Any,
@@ -274,5 +336,10 @@ class PolzaTranscriptionClient:
         """Транскрибировать один MP3, не сокращая и не изменяя текст ответа."""
         body = self._build_serialized_body(chunk_path)
         response = self._post(body)
+        if response.status_code == 400:
+            _LOGGER.warning(
+                "Polza transcription rejected request: status=400 detail=%s",
+                self._safe_provider_error_detail(response),
+            )
         self._raise_for_http_status(response.status_code)
         return self._parse_success(response)

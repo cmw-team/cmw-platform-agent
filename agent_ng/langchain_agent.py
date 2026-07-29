@@ -511,6 +511,48 @@ class CmwAgent:
             registry_key = (self.session_id, original_filename)
             self.file_registry[registry_key] = file_path
 
+    def register_generated_file(self, logical_filename: str, file_path: str) -> None:
+        """Зарегистрировать созданный агентом файл, сохранив исходное имя.
+
+        Обычные загрузки получают уникальное физическое имя через
+        :meth:`register_file`. Для скачиваемых результатов это имя попадает в
+        браузер. Созданные агентом файлы хранятся иначе: уникальность
+        обеспечивается отдельной директорией. Имя файла остаётся логическим,
+        например ``meeting_summary.md``.
+
+        Args:
+            logical_filename: Отображаемое и скачиваемое имя без пути.
+            file_path: Путь к временному файлу, созданному tool.
+
+        Raises:
+            ValueError: Если вместо имени передан путь.
+            OSError: Если файл не удалось переместить в кэш Gradio.
+        """
+        if (
+            not logical_filename
+            or Path(logical_filename).name != logical_filename
+            or logical_filename in {".", ".."}
+        ):
+            message = "Generated filename must be a basename"
+            raise ValueError(message)
+
+        cache_root = Path(FileUtils.get_gradio_cache_path())
+        artifact_dir = cache_root / "cmw-generated" / uuid.uuid4().hex
+        destination = artifact_dir / logical_filename
+
+        # Каталог содержит уникальный идентификатор, поэтому одинаковые
+        # логические имена разных результатов не конфликтуют.
+        artifact_dir.mkdir(parents=True, exist_ok=False)
+        shutil.move(file_path, destination)
+
+        registry_key = (self.session_id, logical_filename)
+        self.file_registry[registry_key] = str(destination)
+        logger.info(
+            "Registered generated file: %s -> %s",
+            logical_filename,
+            destination,
+        )
+
     def get_status(self) -> Dict[str, Any]:
         """Get agent status information"""
         return {

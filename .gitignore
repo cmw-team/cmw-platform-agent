@@ -2,6 +2,10 @@
 .cursor/chats/
 .reference-repos/
 .env
+.polza/
+.opencode/
+*tests/
+*test/
 .venv/**
 .venv*/**
 __pycache__/

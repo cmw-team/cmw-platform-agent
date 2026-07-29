@@ -107,6 +107,7 @@ def test_polza_payload_uses_fixed_model_russian_and_data_url(
     payload = json.loads(request["data"].decode("utf-8"))
     assert payload["language"] == "ru"
     assert payload["response_format"] == "json"
+    assert "timestamp_granularities" not in payload
     assert payload["model"] == MODEL
     assert payload["file"].startswith("data:audio/mp3;base64,")
 
@@ -145,6 +146,72 @@ def test_non_retryable_http_errors_have_one_attempt(
         _client().transcribe_chunk(_audio(tmp_path))
 
     assert len(calls) == 1
+
+
+def test_http_400_logs_only_safe_provider_detail(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    module = _module()
+    _patch_post(
+        monkeypatch,
+        [
+            FakeResponse(
+                400,
+                {
+                    "error": {
+                        "message": (
+                            "response_format verbose_json is not supported "
+                            "for this route"
+                        ),
+                        "request": "data:audio/mp3;base64,SECRET_AUDIO",
+                    }
+                },
+            )
+        ],
+    )
+
+    with (
+        caplog.at_level(logging.WARNING, logger=module.__name__),
+        pytest.raises(module.PolzaInvalidRequestError),
+    ):
+        _client().transcribe_chunk(_audio(tmp_path))
+
+    assert "response_format verbose_json is not supported" in caplog.text
+    assert "SECRET_AUDIO" not in caplog.text
+    assert API_KEY not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "unsafe_detail",
+    [
+        "Authorization: Bearer exposed-token",
+        "invalid file data:audio/mp3;base64,SECRET_AUDIO",
+        "A" * 501,
+    ],
+)
+def test_http_400_redacts_unsafe_provider_detail(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    unsafe_detail: str,
+) -> None:
+    module = _module()
+    _patch_post(
+        monkeypatch,
+        [FakeResponse(400, {"error": {"message": unsafe_detail}})],
+    )
+
+    with (
+        caplog.at_level(logging.WARNING, logger=module.__name__),
+        pytest.raises(module.PolzaInvalidRequestError),
+    ):
+        _client().transcribe_chunk(_audio(tmp_path))
+
+    assert "detail=<redacted>" in caplog.text
+    assert unsafe_detail not in caplog.text
+    assert API_KEY not in caplog.text
 
 
 @pytest.mark.parametrize("status", [408, 429, 500, 502, 503, 504])

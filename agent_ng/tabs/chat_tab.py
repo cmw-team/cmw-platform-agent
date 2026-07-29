@@ -32,9 +32,6 @@ from agent_ng.session_manager import get_current_session_id
 from agent_ng.token_budget import (
     HISTORY_COMPRESSION_KEEP_RECENT_TURNS_MID_TURN,
     TOKEN_STATUS_CRITICAL,
-    TOKEN_STATUS_CRITICAL_THRESHOLD,
-    TOKEN_STATUS_MODERATE_THRESHOLD,
-    TOKEN_STATUS_WARNING_THRESHOLD,
 )
 from tools.file_utils import FileUtils
 
@@ -56,24 +53,9 @@ CHAT_DOWNLOADS_ENABLED = True  # Enable chat export/download functionality
 QUICK_ACTIONS_CONFIG: dict[str, str] = {
     "quick_what_can_do": "quick_what_can_do_message",
     "quick_what_cannot_do": "quick_what_cannot_do_message",
-    "quick_list_apps": "quick_list_apps_message",
-    "quick_math": "quick_math_message",
-    "quick_code": "quick_code_message",
-    "quick_explain": "quick_explain_message",
-    "quick_full_audit": "quick_full_audit_message",
-    "quick_templates_erp": "quick_templates_erp_message",
-    "quick_attributes_contractors": "quick_attributes_contractors_message",
-    "quick_edit_date_time": "quick_edit_date_time_message",
-    "quick_create_comment_attr": "quick_create_comment_attr_message",
-    "quick_create_id_attr": "quick_create_id_attr_message",
-    "quick_edit_phone_mask": "quick_edit_phone_mask_message",
-    "quick_edit_enum": "quick_edit_enum_message",
-    "quick_get_comment_attr": "quick_get_comment_attr_message",
-    "quick_create_attr": "quick_create_attr_message",
-    "quick_edit_mask": "quick_edit_mask_message",
-    "quick_archive_attr": "quick_archive_attr_message",
-    "quick_analyze_image": "quick_analyze_image_message",
-    "quick_platform_infographic": "quick_platform_infographic_message",
+    "quick_video_transcribation": "quick_video_transcribation_message",
+    "quick_audit_questions": "quick_audit_questions_message",
+    "quick_pptx": "quick_pptx_message"
 }
 
 
@@ -753,8 +735,7 @@ class ChatTab:
         # Trigger UI updates after chat events
         self._setup_chat_event_triggers()
 
-        # Note: Sidebar components (token_budget_display, provider_model_selector, progress_display)
-        # are now handled by the UI Manager and will be connected there
+        # Sidebar progress and model controls are wired by UIManager.
 
         logging.getLogger(__name__).debug(
             "✅ ChatTab: All event handlers connected successfully"
@@ -789,7 +770,7 @@ class ChatTab:
                     api_visibility="private",
                 )
 
-            # Trigger UI update after built-in stop (token budget / status)
+            # Trigger UI update after built-in stop.
             if hasattr(self, "stop_event") and self.stop_event:
                 self.stop_event.then(
                     fn=trigger_ui_update,
@@ -824,11 +805,6 @@ class ChatTab:
         # These components are now in the UI Manager sidebar
         return None
 
-    def get_token_budget_display(self) -> gr.Markdown:
-        """Get the token budget display component - now handled by UI Manager"""
-        # These components are now in the UI Manager sidebar
-        return None
-
     def get_llm_selection_components(self) -> dict[str, Any]:
         """Get LLM selection components for UI updates - now handled by UI Manager"""
         # These components are now in the UI Manager sidebar
@@ -845,7 +821,7 @@ class ChatTab:
         cancel_state: dict | None = None,
         request: gr.Request | None = None,
     ) -> tuple[list[dict[str, str]], dict]:
-        """Handle built-in stop button click: set cancellation flag, finalize token tracking, append stats, update UI.
+        """Handle built-in stop: cancel, finalize accounting, add model, update UI.
 
         Following reference repo pattern: uses msg.stop() with built-in stop button.
         Sets cancellation flag in shared state so the running generator can check it.
@@ -928,66 +904,26 @@ class ChatTab:
                             "Failed to finalize turn usage on stop: %s", exc
                         )
 
-                    # Build a stats block and append as assistant meta message
+                    # Append the same minimal provider/model line used at
+                    # normal end-of-turn finalization.
                     try:
-                        prompt_tokens = agent.token_tracker.get_last_prompt_tokens()
-                        api_tokens = agent.token_tracker.get_last_api_tokens()
-
-                        stats_lines = []
-                        if prompt_tokens:
-                            stats_lines.append(
-                                self._get_translation("prompt_tokens").format(
-                                    tokens=prompt_tokens.formatted_no_cost
-                                )
-                            )
-                        if api_tokens:
-                            stats_lines.append(
-                                self._get_translation("api_tokens").format(
-                                    tokens=api_tokens.formatted_no_cost
-                                )
-                            )
-                        # Provider/model and execution time where possible
                         provider = "unknown"
                         model = "unknown"
-                        try:
-                            if getattr(agent, "llm_instance", None):
-                                provider = agent.llm_instance.provider.value
-                                model = agent.llm_instance.model_name
-                        except Exception as exc:
-                            logging.getLogger(__name__).debug(
-                                "Failed to read provider/model for stats: %s", exc
-                            )
-                        stats_lines.append(
-                            self._get_translation("provider_model").format(
-                                provider=provider, model=model
-                            )
-                        )
-                        # Execution time not tracked here; keep lean — omit if not available
-
-                        if stats_lines:
-                            token_display = "\n".join(stats_lines)
-                            token_metadata_message = {
-                                "role": "assistant",
-                                "content": token_display,
-                                "metadata": {
-                                    "title": self._get_translation(
-                                        "token_statistics_title"
-                                    )
-                                },
-                            }
-                            # history is a list of messages for chatbot component
-                            try:
-                                updated_history = list(history) if history else []
-                                updated_history.append(token_metadata_message)
-                                history = updated_history
-                            except Exception as exc:
-                                logging.getLogger(__name__).debug(
-                                    "Failed to append token stats to history: %s", exc
-                                )
+                        if getattr(agent, "llm_instance", None):
+                            provider = agent.llm_instance.provider.value
+                            model = agent.llm_instance.model_name
+                        model_message = {
+                            "role": "assistant",
+                            "content": self._get_translation(
+                                "provider_model_line"
+                            ).format(provider=provider, model=model),
+                        }
+                        updated_history = list(history) if history else []
+                        updated_history.append(model_message)
+                        history = updated_history
                     except Exception as exc:
-                        # Non-fatal: stats block construction may fail silently
                         logging.getLogger(__name__).debug(
-                            "Stats block construction failed: %s", exc
+                            "Failed to append provider/model to history: %s", exc
                         )
 
                 # Ask app to refresh sidebar/status if available
@@ -1009,7 +945,7 @@ class ChatTab:
     def _finalize_tokens_on_stop(
         self, request: gr.Request, history: list[dict[str, str]]
     ) -> list[dict[str, str]]:
-        """Finalize token tracking and append stats when streaming is stopped"""
+        """Finalize token tracking and append the model line when streaming stops."""
         if not (
             hasattr(self, "main_app")
             and self.main_app
@@ -1091,40 +1027,22 @@ class ChatTab:
                 "Failed to check/perform compression on stop: %s", comp_exc
             )
 
-        # Build a stats block and append as assistant meta message
+        # Build the minimal provider/model line after an interrupted turn.
         try:
-            stats_history = self._build_token_stats_message(agent, messages)
+            stats_history = self._build_provider_model_message(agent)
             if stats_history:
                 return stats_history
         except Exception as exc:
             logging.getLogger(__name__).debug(
-                "Stats block construction failed: %s", exc
+                "Provider/model message construction failed: %s", exc
             )
 
         return history
 
-    def _build_token_stats_message(
-        self, agent, messages: list
+    def _build_provider_model_message(
+        self, agent
     ) -> list[dict[str, str]] | None:
-        """Build and return token statistics message for history"""
-        prompt_tokens = agent.token_tracker.get_last_prompt_tokens()
-        api_tokens = agent.token_tracker.get_last_api_tokens()
-
-        stats_lines = []
-        if prompt_tokens:
-            stats_lines.append(
-                self._get_translation("prompt_tokens").format(
-                    tokens=prompt_tokens.formatted_no_cost
-                )
-            )
-        if api_tokens:
-            # Show API tokens with input/output breakdown (no cost in chat)
-            token_line = self._get_translation("api_tokens").format(
-                tokens=api_tokens.formatted_no_cost
-            )
-            stats_lines.append(token_line)
-
-        # Provider/model info
+        """Build the minimal provider/model line used after an interrupted turn."""
         provider = "unknown"
         model = "unknown"
         try:
@@ -1135,274 +1053,16 @@ class ChatTab:
             logging.getLogger(__name__).debug(
                 "Failed to read provider/model for stats: %s", exc
             )
-        stats_lines.append(
-            self._get_translation("provider_model").format(
-                provider=provider, model=model
-            )
-        )
 
-        if not stats_lines:
-            return None
-
-        token_display = "\n".join(stats_lines)
-        token_metadata_message = {
-            "role": "assistant",
-            "content": token_display,
-            "metadata": {"title": self._get_translation("token_statistics_title")},
-        }
-
-        # Return updated history with stats message appended
-        return [token_metadata_message]
-
-    def _is_free_model(self, agent) -> bool:
-        """Heuristic: OpenRouter uses ':free' suffix for free-tier models."""
-        try:
-            llm_instance = getattr(agent, "llm_instance", None)
-            model = (getattr(llm_instance, "model_name", "") or "").lower()
-            return ":free" in model
-        except Exception:
-            return False
-
-    def _format_cost_display(self, agent, cost: float | None) -> str:
-        """Format cost for UI: show $0.0000 only for free models, else '—' if unknown."""
-        if cost is None:
-            return "—"  # Unknown pricing
-        if cost == 0.0:
-            # cost == 0.0: check if it's a free model or unknown
-            if self._is_free_model(agent):
-                return "$0.0000"  # Explicitly free model
-            return "—"  # Unknown (0.0 but not a free model)
-        # Use helper to format with minimum necessary decimal places
-        from agent_ng.utils import format_cost
-
-        return format_cost(cost)
-
-    def format_token_budget_display(self, request: gr.Request = None) -> str:
-        """Format and return the token budget display - now session-aware"""
-        if not hasattr(self, "main_app") or not self.main_app:
-            return self._get_translation("token_budget_initializing")
-
-        # Session-specific agent: prefer gr.Request; fallback to context session when
-        # tails omit Request (e.g. legacy queue=False handlers).
-        agent = None
-        sm = getattr(self.main_app, "session_manager", None)
-        if sm:
-            session_id = None
-            if request:
-                session_id = sm.get_session_id(request)
-            else:
-                session_id = sm.get_current_session_id()
-            if session_id:
-                agent = sm.get_session_agent(session_id)
-
-        if not agent:
-            return self._get_translation("token_budget_initializing")
-
-        try:
-            budget_info = agent.get_token_budget_info()
-
-            if budget_info["status"] == "unknown":
-                return self._get_translation("token_budget_unknown")
-
-            # Get cumulative stats for detailed display
-            try:
-                cumulative_stats = agent.token_tracker.get_cumulative_stats()
-            except Exception as exc:
-                logging.getLogger(__name__).debug(
-                    "Failed to get cumulative stats: %s", exc
-                )
-                return self._get_translation("token_budget_initializing")
-
-            # "Сообщение" is per-turn and must be monotonic:
-            # - sums API usage across iterations when available
-            # - otherwise uses a monotonic estimate (snapshot-fed), esp. for interruptions
-            try:
-                used_tokens = int(
-                    agent.token_tracker.get_message_display_total_tokens() or 0
-                )
-            except Exception as exc:
-                logging.getLogger(__name__).debug(
-                    "Failed to compute message display tokens: %s", exc
-                )
-                used_tokens = int(budget_info.get("used_tokens", 0) or 0)
-
-            percentage_for_display = budget_info.get("percentage", 0.0)
-            if budget_info["context_window"] > 0 and used_tokens > 0:
-                percentage_for_display = round(
-                    (used_tokens / budget_info["context_window"]) * 100.0, 1
-                )
-
-            # Determine status icon using localized translations
-            # Recalculate status based on API token percentage if available
-            if budget_info["context_window"] > 0 and used_tokens > 0:
-                api_percentage = (used_tokens / budget_info["context_window"]) * 100.0
-                if api_percentage >= TOKEN_STATUS_CRITICAL_THRESHOLD:
-                    status_icon = self._get_translation("token_status_critical")
-                elif api_percentage >= TOKEN_STATUS_WARNING_THRESHOLD:
-                    status_icon = self._get_translation("token_status_warning")
-                elif api_percentage >= TOKEN_STATUS_MODERATE_THRESHOLD:
-                    status_icon = self._get_translation("token_status_moderate")
-                else:
-                    status_icon = self._get_translation("token_status_good")
-            else:
-                status_icon = self._get_translation(
-                    f"token_status_{budget_info['status']}"
-                )
-
-            # Build token usage display using hierarchical format
-            # Get cost information
-            conv_cost = cumulative_stats.get("conversation_cost")
-            total_cost = cumulative_stats.get("total_cost")
-            turn_cost = cumulative_stats.get("turn_cost")
-
-            # Format total with cost (precision .4f)
-            total_tokens = cumulative_stats.get("conversation_tokens", 0)
-            cost_str = ""
-            total_cost_display = self._format_cost_display(agent, total_cost)
-            if total_cost_display != "—":
-                cost_str = f" / {total_cost_display}"
-            total = (
-                self._get_translation("token_usage_total").format(
-                    total_tokens=total_tokens
-                )
-                + cost_str
-            )
-
-            # Format conversation with cost (precision .4f)
-            conv_tokens = cumulative_stats.get("session_tokens", 0)
-            conv_cost_str = ""
-            conv_cost_display = self._format_cost_display(agent, conv_cost)
-            if conv_cost_display != "—":
-                conv_cost_str = f" / {conv_cost_display}"
-            conversation = (
-                self._get_translation("token_usage_conversation").format(
-                    conversation_tokens=conv_tokens
-                )
-                + conv_cost_str
-            )
-
-            # Get estimated total for forecast breakdown
-            estimated_total = 0
-            try:
-                # Prefer monotonic per-turn estimate; fall back to latest snapshot total.
-                estimated_total = int(
-                    agent.token_tracker.get_turn_estimated_total_tokens() or 0
-                )
-                if estimated_total <= 0:
-                    snap = agent.token_tracker.get_budget_snapshot()
-                    if isinstance(snap, dict):
-                        estimated_total = int(snap.get("total_tokens", 0) or 0)
-            except Exception as exc:
-                logging.getLogger(__name__).debug(
-                    "Failed to compute estimated usage for display: %s", exc
-                )
-                estimated_total = 0
-
-            # Forecast breakdown (indented sub-items)
-            breakdown_info = ""
-            try:
-                snap = agent.token_tracker.get_budget_snapshot()
-                if isinstance(snap, dict):
-                    conv_tokens_snap = snap.get("conversation_tokens", 0)
-                    tool_tokens = snap.get("tool_tokens", 0)
-                    overhead_tokens = snap.get("overhead_tokens", 0)
-                    breakdown_info = (
-                        "\n    - "
-                        + self._get_translation("token_breakdown_context").format(
-                            conv_tokens=conv_tokens_snap
-                        )
-                        + "\n    - "
-                        + self._get_translation("token_breakdown_tools").format(
-                            tool_tokens=tool_tokens
-                        )
-                        + "\n    - "
-                        + self._get_translation("token_breakdown_overhead").format(
-                            overhead_tokens=overhead_tokens
-                        )
-                    )
-            except Exception as exc:
-                logging.getLogger(__name__).debug(
-                    "Failed to get token breakdown: %s", exc
-                )
-
-            estimate_line = (
-                "- "
-                + self._get_translation("token_usage_estimate").format(
-                    estimated_tokens=estimated_total
-                )
-                + breakdown_info
-            )
-
-            # Message section with context, input/output, and cost (indented sub-items)
-            message_section = "- " + self._get_translation("token_usage_last_message")
-            input_tokens = cumulative_stats.get("last_input_tokens", 0)
-            output_tokens = cumulative_stats.get("last_output_tokens", 0)
-
-            # Message context (percentage)
-            message_context_line = self._get_translation(
-                "token_message_context"
-            ).format(
-                percentage=percentage_for_display,
-                used=used_tokens,
-                context_window=budget_info["context_window"],
-                status_icon=status_icon,
-            )
-
-            # Input/output tokens
-            input_line = self._get_translation("token_message_input").format(
-                tokens=input_tokens
-            )
-            output_line = self._get_translation("token_message_output").format(
-                tokens=output_tokens
-            )
-
-            # Cache details (OpenRouter prompt_tokens_details)
-            cached_tokens = cumulative_stats.get("last_cached_tokens")
-            cache_write_tokens = cumulative_stats.get("last_cache_write_tokens")
-            cache_lines = ""
-            if cached_tokens is not None:
-                cache_lines += "\n    - " + self._get_translation(
-                    "token_message_cached_tokens"
-                ).format(tokens=int(cached_tokens or 0))
-            if cache_write_tokens is not None:
-                cache_lines += "\n    - " + self._get_translation(
-                    "token_message_cache_write_tokens"
-                ).format(tokens=int(cache_write_tokens or 0))
-
-            # Cost for current message/turn
-            base_cost = turn_cost if (turn_cost is not None) else conv_cost
-            message_cost_str = self._format_cost_display(agent, base_cost)
-            cost_line = self._get_translation("token_message_cost").format(
-                cost=message_cost_str
-            )
-
-            message_details = f"\n    - {message_context_line}\n    - {input_line}\n    - {output_line}{cache_lines}\n    - {cost_line}"
-
-            # Average with cost (precision .4f)
-            avg_tokens = cumulative_stats.get("avg_tokens_per_message", 0)
-            message_count = cumulative_stats.get("message_count", 0)
-            avg_cost_str = ""
-            if message_count > 0:
-                # Treat 0-cost as "unknown" unless we know we're on a free model.
-                avg_cost = (
-                    (conv_cost / message_count)
-                    if (conv_cost is not None and conv_cost > 0)
-                    else None
-                )
-                avg_cost_display = self._format_cost_display(agent, avg_cost)
-                avg_cost_str = f" / {avg_cost_display}"
-            average = (
-                self._get_translation("token_usage_average").format(
-                    avg_tokens=avg_tokens
-                )
-                + avg_cost_str
-            )
-
-        except Exception as e:
-            print(f"Error formatting token budget: {e}")
-            return self._get_translation("token_budget_unknown")
-        else:
-            return f"- {total}\n- {conversation}\n{estimate_line}\n{message_section}{message_details}\n- {average}"
+        return [
+            {
+                "role": "assistant",
+                "content": self._get_translation("provider_model_line").format(
+                    provider=provider,
+                    model=model,
+                ),
+            }
+        ]
 
     def _get_available_providers(self) -> list[str]:
         """Get list of available LLM providers from session manager"""

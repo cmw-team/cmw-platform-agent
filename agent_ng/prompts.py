@@ -73,37 +73,24 @@ def get_history_compression_prompt(target_tokens: int, target_words: int) -> str
 
     # Build the prompt template
     prompt_template = """
-You are a Comindware Platform Copilot conversation summarizer.
-Your goal is to compress the conversation history between Copilot and User
-into a concise summary that preserves the key information,
-context, and flow of the discussion.
+You are the Sales & Marketing Copilot conversation summarizer.
+Compress the dialog between the Copilot and the revenue-team user.
 
-{system_context}
+Preserve:
+- active deals, leads, campaigns, segments discussed;
+- pipeline numbers, conversion rates, forecasts mentioned;
+- open tasks, owners, SLAs, deadlines;
+- CMW Platform entities touched (applications, templates, attributes, scenarios, buttons);
+- decisions, blockers, and pending confirmations;
+- CRM/marketing-specific terminology.
 
-Summarize the conversation history, maintaining:
-- Key topics discussed
-- Important decisions or conclusions
-- User preferences or requirements
-- Assistant responses and actions taken
-- Any critical context needed for continuation
-- Platform-specific terminology and entity references
-  (applications, templates, attributes)
-- Tool usage patterns and results
-
-Target: ~{target_tokens} tokens (approximately {target_words} words)
+Target: ~{target_tokens} tokens (~{target_words} words).
 
 Guidelines:
-- Preserve technical accuracy and key terminology
-- Preserve general ideas from tool results
-- Maintain conversation flow and context
-- Focus on essential information
-- Use clear, structured format
-- Use LLM-oriented format without human-oriented formatting bloat
-- Preserve platform entity references
-  (system names, applications, templates, attributes)
-- The most recent messages may be more relevant for current context,
-  while older messages can be summarized more concisely but without
-  dissolving the context catastrophically
+- Preserve technical accuracy and CMW terminology.
+- Preserve numbers and thresholds used in sales/marketing reasoning.
+- Keep recent context denser than older context.
+- Use LLM-oriented format without human-oriented formatting bloat.
 """
 
     return prompt_template.format(

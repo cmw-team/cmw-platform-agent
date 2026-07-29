@@ -1,9 +1,10 @@
 # ruff: noqa: RUF002, RUF003
 """LangChain tool для полной транскрибации вложенного аудио или видео.
 
-Основная модель передаёт только исходное имя вложения. Физический путь и ключ
-Polza берутся из текущей UI-сессии, не входят в schema и никогда не возвращаются
-в результате. Модуль координирует локальные и внешние операции, но не выполняет
+Основная модель передаёт только исходное имя вложения. Физический путь берётся
+из текущей UI-сессии, а ключ Polza — из переменной окружения
+``POLZA_API_KEY``. Они не входят в schema и никогда не возвращаются в
+результате. Модуль координирует локальные и внешние операции, но не выполняет
 summary и не изменяет текст транскрибации.
 """
 
@@ -21,7 +22,6 @@ from langchain_core.tools import InjectedToolArg, tool
 from pydantic import BaseModel, Field
 
 from agent_ng.openrouter_usage_accounting import normalize_polza_usage
-from agent_ng.session_manager import get_session_config
 from tools.media_tools.media_converter import (
     AudioStreamNotFoundError,
     ConversionFailedError,
@@ -62,8 +62,8 @@ _ERROR_MESSAGES = {
     "audio_stream_not_found": "В файле отсутствует аудиодорожка.",
     "conversion_failed": "Не удалось подготовить MP3-фрагменты.",
     "payload_too_large": "Не удалось уменьшить аудио до допустимого размера запроса.",
-    "polza_api_key_missing": "Введите API key Polza в настройках текущей сессии.",
-    "polza_authentication_failed": "Polza отклонила API key текущей сессии.",
+    "polza_api_key_missing": "Настройте POLZA_API_KEY в окружении сервера.",
+    "polza_authentication_failed": "Polza отклонила настроенный POLZA_API_KEY.",
     "polza_insufficient_funds": "На балансе Polza недостаточно средств.",
     "polza_invalid_request": "Polza отклонила запрос транскрибации.",
     "polza_rate_limit": "Polza не выполнила запрос из-за ограничения частоты.",
@@ -161,26 +161,16 @@ def _resolve_uploaded_path(source: str, agent: Any) -> Path | None:
     return path if path.is_file() else None
 
 
-def _session_polza_key(agent: Any) -> str | None:
-    """Прочитать Polza key только из конфигурации указанной UI-сессии.
+def _environment_polza_key() -> str | None:
+    """Прочитать ключ Polza из окружения процесса.
 
-    Здесь намеренно не используется общий ``get_provider_api_key``, потому что
-    он допускает fallback на environment, запрещённый контрактом этого tool.
+    При штатном запуске ``load_dotenv`` заранее переносит значение из ``.env``
+    в ``os.environ``. Пустое или состоящее только из пробелов значение
+    считается отсутствующим. UI-сессионные ключи здесь намеренно не
+    используются: транскрибация работает с единым серверным ключом.
     """
-    session_id = getattr(agent, "session_id", None)
-    if not isinstance(session_id, str) or not session_id:
-        return None
-    try:
-        config = get_session_config(session_id)
-    except Exception:
-        return None
-    if not isinstance(config, dict):
-        return None
-    keys = config.get("llm_provider_api_keys")
-    if not isinstance(keys, dict):
-        return None
-    key = keys.get("polza")
-    return key.strip() if isinstance(key, str) and key.strip() else None
+    key = os.getenv("POLZA_API_KEY", "").strip()
+    return key or None
 
 
 @contextmanager
@@ -268,7 +258,7 @@ def transcribe_uploaded_media(
     if source_path is None:
         return _error("file_not_found")
 
-    api_key = _session_polza_key(agent)
+    api_key = _environment_polza_key()
     if api_key is None:
         return _error("polza_api_key_missing")
 

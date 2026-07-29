@@ -46,9 +46,13 @@ class MessageProcessor:
         self.sys_msg = SystemMessage(content=self.system_prompt)
 
     def _get_default_system_prompt(self) -> str:
-        """Get the default system prompt"""
-        return """You are a helpful AI assistant. You can use tools to help answer questions.
-When you have enough information to provide a complete answer, use the submit_answer tool with your final response."""
+        return (
+            "You are the Sales & Marketing Copilot on the Comindware/CMW Platform. "
+            "You help revenue teams manage leads, deals, accounts, campaigns and segments, "
+            "and you automate sales/marketing workflows using CMW scenarios and process diagrams. "
+            "Consult the platform knowledge base before answering about CMW capabilities. "
+            "When you have enough information, use the submit_answer tool with your final response."
+        )
 
     def format_messages(self, context: MessageContext) -> List[BaseMessage]:
         """

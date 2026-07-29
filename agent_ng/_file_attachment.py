@@ -110,9 +110,10 @@ def build_file_bubbles(attachment: dict[str, Any] | None) -> list[dict[str, Any]
 
     - Empty list when ``attachment`` is None or the path no longer exists.
     - Two messages when the file is present:
-      1. Inline file bubble — ``{"role": "assistant", "content": {"path": …,
-         "alt_text": …}}`` — Gradio 5 renders this as an image preview or
-         file-chip depending on extension.
+      1. Inline file bubble — ``{"role": "assistant", "content":
+         {"type": "file", "file": {"path": …, "orig_name": …},
+         "alt_text": …}}`` — Gradio renders this as an image preview or
+         file-chip and uses the logical name for downloading.
       2. Caption line — ``{"role": "assistant", "content": "📎 name — size"}``
          — visible text for accessibility / copy-paste / LLM reference.
     """
@@ -127,7 +128,14 @@ def build_file_bubbles(attachment: dict[str, Any] | None) -> list[dict[str, Any]
     return [
         {
             "role": "assistant",
-            "content": {"path": abs_path, "alt_text": display_name},
+            "content": {
+                "type": "file",
+                "file": {
+                    "path": abs_path,
+                    "orig_name": display_name,
+                },
+                "alt_text": display_name,
+            },
         },
         {
             "role": "assistant",
