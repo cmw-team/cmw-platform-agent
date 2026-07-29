@@ -1160,6 +1160,9 @@ class LLMManager:
         * ``extract_presentation_slides`` from ``tools.presentation_tools`` —
           PPTX text extraction (see
           ``.scratch/extract_presentation_slides-contract.md``).
+        * ``transcribe_uploaded_media`` and ``save_meeting_markdown`` from
+          ``tools.media_tools`` — audio/video transcription through the Polza
+          API and creation of downloadable meeting artifacts.
 
         ``tools.applications_tools`` and ``tools.attributes_tools`` were
         removed entirely. Root-level ``tools.tools`` and friends are not bound.
@@ -1194,6 +1197,20 @@ class LLMManager:
         except ImportError:
             self._log_initialization(
                 "Could not import tools.presentation_tools module", "WARNING"
+            )
+
+        try:
+            import tools.media_tools as media_tools_module
+
+            self._load_tools_from_module(
+                media_tools_module,
+                tool_list,
+                "tools.media_tools",
+                tool_names,
+            )
+        except ImportError:
+            self._log_initialization(
+                "Could not import tools.media_tools module", "WARNING"
             )
 
         try:

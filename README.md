@@ -156,6 +156,7 @@ The agent supports multiple LLM providers with manual selection:
 ### Prerequisites
 
 - Python 3.12+
+- FFmpeg with both `ffmpeg` and `ffprobe` available in the process `PATH`
 - CMW Platform access credentials
 - At least one LLM provider API key
 
@@ -167,6 +168,29 @@ The agent supports multiple LLM providers with manual selection:
    git clone https://github.com/arterm-sedov/cmw-platform-agent
    cd cmw-platform-agent
    pip install -r requirements.txt
+   ```
+
+   FFmpeg is a system runtime dependency and is not installed by
+   `pip install -r requirements.txt`. Install it separately:
+
+   Windows (Scoop):
+
+   ```powershell
+   scoop install ffmpeg
+   ```
+
+   Debian / Ubuntu:
+
+   ```bash
+   sudo apt install ffmpeg
+   ```
+
+   Verify that both executables are available to the process that will run
+   the agent:
+
+   ```bash
+   ffmpeg -version
+   ffprobe -version
    ```
 
 2. **Configure environment**:
