@@ -14,9 +14,9 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 def test_tab_imports():
-    """Test that tab modules can be imported correctly"""
+    """Test that visible tab modules can be imported correctly."""
     try:
-        from agent_ng.tabs import ChatTab, LogsTab, StatsTab
+        from agent_ng.tabs import ChatTab, ConfigTab, DownloadsTab, HomeTab, StatsTab
         print("✅ Tab imports successful")
         return True
     except ImportError as e:
@@ -24,16 +24,14 @@ def test_tab_imports():
         return False
 
 def test_tab_creation():
-    """Test that tab instances can be created"""
+    """Test that visible tab instances can be created."""
     try:
-        from agent_ng.tabs import ChatTab, LogsTab, StatsTab
+        from agent_ng.tabs import ChatTab, ConfigTab, DownloadsTab, HomeTab, StatsTab
 
         # Create mock event handlers
         event_handlers = {
             "stream_message": lambda x, y: (y, ""),
             "clear_chat": lambda: ([], ""),
-            "refresh_logs": lambda: "Test logs",
-            "clear_logs": lambda: "Logs cleared",
             "refresh_stats": lambda: "Test stats",
             "update_status": lambda: "Test status",
             "quick_math": lambda: "Test math",
@@ -44,17 +42,12 @@ def test_tab_creation():
             "quick_list_apps": lambda: "Test list apps",
         }
 
-        # Test ChatTab
-        chat_tab = ChatTab(event_handlers)
-        print("✅ ChatTab creation successful")
-
-        # Test LogsTab
-        logs_tab = LogsTab(event_handlers)
-        print("✅ LogsTab creation successful")
-
-        # Test StatsTab
-        stats_tab = StatsTab(event_handlers)
-        print("✅ StatsTab creation successful")
+        ChatTab(event_handlers)
+        ConfigTab(event_handlers)
+        DownloadsTab(event_handlers)
+        HomeTab(event_handlers)
+        StatsTab(event_handlers)
+        print("✅ Visible tab creation successful")
 
         return True
     except Exception as e:

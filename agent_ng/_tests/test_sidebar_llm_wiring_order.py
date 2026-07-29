@@ -35,18 +35,7 @@ def test_apply_llm_selection_update_stats_reads_display_not_combined_toast():
     stats_tab.format_stats_display.assert_called_once()
 
 
-def test_apply_llm_selection_update_stats_and_budget_returns_pair():
-    panel = SidebarPanel(
-        event_handlers={"update_token_budget": lambda _req: "__budget__"},
-        language="en",
-    )
-    panel.main_app = MagicMock()
-    stats_tab = MagicMock()
-    stats_tab.format_stats_display.return_value = "__stats__"
-    panel.main_app.tab_instances = {"stats": stats_tab}
+def test_model_selection_has_no_token_budget_variant():
+    panel = SidebarPanel(event_handlers={}, language="en")
 
-    with patch.object(SidebarPanel, "_apply_llm_selection_combined", return_value="x"):
-        st, bud = panel._apply_llm_selection_update_stats_and_budget("p / m", None)
-
-    assert st == "__stats__"
-    assert bud == "__budget__"
+    assert not hasattr(panel, "_apply_llm_selection_update_stats_and_budget")

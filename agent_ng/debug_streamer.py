@@ -320,10 +320,7 @@ class SessionAwareLogHandler(logging.Handler):
 
 class GradioLogHandler(logging.Handler):
     """
-    Handler for streaming logs to Gradio interface.
-
-    This class handles the conversion of log entries to Gradio-compatible
-    formats and manages the streaming to the Logs tab.
+    Handler for buffering formatted diagnostic logs.
     """
 
     def __init__(self, debug_streamer: DebugStreamer):

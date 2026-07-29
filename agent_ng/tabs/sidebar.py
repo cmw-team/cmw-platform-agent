@@ -35,7 +35,7 @@ class Sidebar:
         self._llm_events_connected = False
 
     def mount_llm_selection_ui(self) -> None:
-        """Create provider/model, fallback, and compression controls (Config tab)."""
+        """Create primary and fallback provider/model controls (Model tab)."""
         with gr.Column(elem_classes=["model-card"]):
             gr.Markdown(
                 f"### {self._get_translation('llm_selection_title')}",
@@ -93,14 +93,8 @@ class Sidebar:
                 elem_classes=["provider-model-selector"],
             )
 
-            self.components["compression_enabled"] = gr.Checkbox(
-                label=self._get_translation("compression_enabled_label"),
-                value=self._get_default_compression_enabled(),
-                interactive=True,
-            )
-
     def mount_sidebar_body_without_llm(self) -> None:
-        """Progress + token budget (status lives in Stats tab)."""
+        """Create the progress-only sidebar body."""
         with gr.Column(elem_classes=["model-card"]):
             gr.Markdown(
                 f"### {self._get_translation('progress_title')}",
@@ -108,13 +102,6 @@ class Sidebar:
             )
             self.components["progress_display"] = gr.Markdown(
                 self._get_translation("progress_ready")
-            )
-            gr.Markdown(
-                f"### {self._get_translation('token_budget_title')}",
-                elem_classes=["token-budget-title"],
-            )
-            self.components["token_budget_display"] = gr.Markdown(
-                self._get_translation("token_budget_initializing")
             )
 
     def create_sidebar_column(self) -> dict[str, Any]:
@@ -155,7 +142,7 @@ class Sidebar:
         logging.getLogger(__name__).debug("🔗 Sidebar: sidebar events hook (no-op)")
 
     def _connect_llm_events(self) -> None:
-        """LLM dropdown / fallback / compression handlers."""
+        """Wire the primary and fallback model handlers."""
         logging.getLogger(__name__).debug("🔗 Sidebar: Wiring LLM event handlers...")
         stats_block = None
         if self.main_app and getattr(self.main_app, "ui_manager", None):
@@ -163,8 +150,6 @@ class Sidebar:
 
         if "provider_model_selector" in self.components and stats_block is not None:
             eh = getattr(self, "event_handlers", None) or {}
-            update_token_budget_handler = eh.get("update_token_budget")
-            token_budget_comp = self.components.get("token_budget_display")
             refresh_stats_handler = eh.get("refresh_stats")
             stats_detail = None
             if self.main_app and getattr(self.main_app, "ui_manager", None):
@@ -172,26 +157,15 @@ class Sidebar:
                     "stats_display"
                 )
 
-            if token_budget_comp and update_token_budget_handler:
-                model_switch_event = self.components["provider_model_selector"].change(
-                    fn=self._apply_llm_selection_update_stats_and_budget,
-                    inputs=[self.components["provider_model_selector"]],
-                    outputs=[stats_block, token_budget_comp],
-                    api_visibility="private",
-                )
-                logging.getLogger(__name__).debug(
-                    "✅ Model switch: stats + token budget (session agent)"
-                )
-            else:
-                model_switch_event = self.components["provider_model_selector"].change(
-                    fn=self._apply_llm_selection_update_stats_only,
-                    inputs=[self.components["provider_model_selector"]],
-                    outputs=[stats_block],
-                    api_visibility="private",
-                )
-                logging.getLogger(__name__).debug(
-                    "✅ Model switch wired to stats from session agent"
-                )
+            model_switch_event = self.components["provider_model_selector"].change(
+                fn=self._apply_llm_selection_update_stats_only,
+                inputs=[self.components["provider_model_selector"]],
+                outputs=[stats_block],
+                api_visibility="private",
+            )
+            logging.getLogger(__name__).debug(
+                "✅ Model switch wired to stats from session agent"
+            )
 
             if refresh_stats_handler and stats_detail is not None:
                 model_switch_event.then(
@@ -203,14 +177,6 @@ class Sidebar:
                 logging.getLogger(__name__).debug(
                     "✅ Model switch wired to refresh full stats display"
                 )
-
-        if "compression_enabled" in self.components:
-            self.components["compression_enabled"].change(
-                fn=self._apply_compression_toggle,
-                inputs=[self.components["compression_enabled"]],
-                outputs=[],
-                api_visibility="private",
-            )
 
         if (
             "use_fallback_model" in self.components
@@ -247,10 +213,6 @@ class Sidebar:
         """Get the progress display component"""
         return self.components.get("progress_display")
 
-    def get_token_budget_display(self) -> gr.Markdown:
-        """Get the token budget display component"""
-        return self.components.get("token_budget_display")
-
     def get_llm_selection_components(self) -> dict[str, Any]:
         """Get LLM selection components for UI updates"""
         return {
@@ -277,44 +239,6 @@ class Sidebar:
             return model_name
         ctx = self._format_context_window(token_limit)
         return f"{model_name} / {ctx}"
-
-    def _get_default_compression_enabled(self) -> bool:
-        """Get default compression enabled flag from environment.
-
-        This is a UI default; per-session value is stored on the agent.
-        """
-        return parse_env_bool("HISTORY_COMPRESSION_ENABLED")
-
-    def _apply_compression_toggle(
-        self, enabled: bool, request: gr.Request | None = None
-    ) -> None:
-        """Apply history compression toggle for the current session agent."""
-        try:
-            if not hasattr(self, "main_app") or not self.main_app:
-                return
-            if not hasattr(self.main_app, "session_manager"):
-                return
-
-            session_id = (
-                self.main_app.session_manager.get_session_id(request)
-                if request
-                else "default"
-            )
-            session_agent = self.main_app.session_manager.get_session_agent(session_id)
-            if not session_agent:
-                return
-
-            # Store per-session compression flag on the agent
-            session_agent.compression_enabled = bool(enabled)
-            logging.getLogger(__name__).debug(
-                "✅ Compression toggle set to %s for session %s",
-                enabled,
-                session_id,
-            )
-        except Exception as exc:
-            logging.getLogger(__name__).debug(
-                "Failed to apply compression toggle: %s", exc
-            )
 
     def _fallback_master_switch_enabled(self) -> bool:
         """Check global master switch for fallback model controls."""
@@ -654,31 +578,12 @@ class Sidebar:
             return stats_tab.format_stats_display(request)
         return ""
 
-    def _token_budget_after_llm_apply(self, request: gr.Request | None = None) -> str:
-        eh = getattr(self, "event_handlers", None) or {}
-        fn = eh.get("update_token_budget")
-        if callable(fn):
-            return fn(request)
-        return get_translation_key(
-            "token_budget_initializing", getattr(self, "language", "en")
-        )
-
     def _apply_llm_selection_update_stats_only(
         self, provider_model_combination: str, request: gr.Request | None = None
     ) -> str:
         """Apply model switch; stats show actual session (not toast text)."""
         self._apply_llm_selection_combined(provider_model_combination, request)
         return self._format_stats_display_after_llm_apply(request)
-
-    def _apply_llm_selection_update_stats_and_budget(
-        self, provider_model_combination: str, request: gr.Request | None = None
-    ) -> tuple[str, str]:
-        """Apply model switch and refresh stats + token budget in one event."""
-        self._apply_llm_selection_combined(provider_model_combination, request)
-        return (
-            self._format_stats_display_after_llm_apply(request),
-            self._token_budget_after_llm_apply(request),
-        )
 
     def _is_mistral_model(self, provider: str, model: str) -> bool:
         """Check if the selected model is a Mistral model"""

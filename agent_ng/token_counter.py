@@ -744,8 +744,7 @@ class ConversationTokenTracker:
         Called for tools that make their own API calls (e.g. image generation
         via direct HTTP) and report cost in their result dict. The amount is
         added to the same ``session_cost`` and ``conversation_cost``
-        accumulators used by the LLM, so all cost displays — the per-turn
-        stats bubble, the sidebar token budget widget, and the Stats tab —
+        accumulators used by the LLM, so backend totals and the Stats tab
         reflect the true total without any extra wiring.
 
         Args:

@@ -297,7 +297,7 @@ Files are automatically registered in a session-isolated registry and accessible
 2. **Tool Calls Failing**
    - Verify CMW Platform connection in Config tab
    - Check tool permissions and platform access
-   - Review error logs in Logs tab
+   - Review error logs in the configured log file or console
 
 3. **Session Issues**
    - Clear browser cache and restart application
@@ -322,7 +322,7 @@ export CMW_DEBUG_MODE=true
 export CMW_VERBOSE_LOGGING=true
 ```
 
-Check logs in the Logs tab or console output for detailed error traces and execution flow.
+Check the configured log file or console output for detailed error traces and execution flow.
 
 ## Development
 

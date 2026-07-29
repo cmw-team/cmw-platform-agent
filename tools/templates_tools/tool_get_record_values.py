@@ -29,7 +29,7 @@ def _unwrap_webapi_payload(raw: Any) -> Any:
 
 
 def _fetch_record_field_values(
-    record_id: str,
+    record_ids: list[str],
     attribute_system_names: list[str],
 ) -> dict[str, Any]:
     """
@@ -39,7 +39,7 @@ def _fetch_record_field_values(
         success, data: ``{ record_id: { attr_alias: value, ... } }`` or error.
     """
     body: dict[str, Any] = {
-        "objects": [record_id],
+        "objects": list(record_ids),
         "propertiesByAlias": list(attribute_system_names),
     }
     result = _post_request(body, GET_PROPERTY_VALUES)
@@ -59,19 +59,19 @@ def _fetch_record_field_values(
             "data": None,
             "error": "Unexpected GetPropertyValues response shape",
         }
-    row = inner.get(record_id, {})
+    row = inner.get(record_ids, {})
     if not isinstance(row, dict):
         row = {}
     return {
         "success": True,
         "status_code": int(result.get("status_code", 0) or 0),
-        "data": {record_id: row},
+        "data": {record_ids: row},
         "error": None,
     }
 
 
 class GetRecordValuesSchema(BaseModel):
-    record_id: str = Field(description="Record id to read.")
+    record_id: list[str] = Field(min_length=1, description="Record ids to read.")
     attribute_system_names: list[str] = Field(
         min_length=1,
         description=(
@@ -83,8 +83,8 @@ class GetRecordValuesSchema(BaseModel):
     @field_validator("record_id", mode="before")
     @classmethod
     def strip_rid(cls, v: Any) -> str:
-        if not isinstance(v, str) or not v.strip():
-            msg = "record_id must be a non-empty string"
+        if not isinstance(v, list[str]) or not v.strip():
+            msg = "record_id must be a non-empty list of strings"
             raise ValueError(msg)
         return v.strip()
 
@@ -95,13 +95,13 @@ class GetRecordValuesSchema(BaseModel):
     args_schema=GetRecordValuesSchema,
 )
 def get_record_values(
-    record_id: str, attribute_system_names: list[str]
+    record_ids: list[str], attribute_system_names: list[str]
 ) -> dict[str, Any]:
     """
     Get current values for one or more attributes on a record (by system name). Use before fetch
     or attach, or whenever you need the live property values for a record.
     """
-    return _fetch_record_field_values(record_id, attribute_system_names)
+    return _fetch_record_field_values(record_ids, attribute_system_names)
 
 
 __all__ = [

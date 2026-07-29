@@ -6,13 +6,12 @@ A modern Gradio application using pure LangChain patterns with modular tab archi
 This version uses separate tab modules for better organization and maintainability.
 
 Key Features:
-- Modular tab architecture (Chat, Logs, Stats)
+- Modular tab architecture (Home, Chat, Model, Stats, Downloads)
 - Pure LangChain conversation chains and memory
 - Multi-turn conversation support with tool calls
 - Real-time streaming with metadata
 - Native LangChain tool calling
-- Modern Gradio UI with comprehensive monitoring
-- Tool usage visualization
+- Modern Gradio UI with streamlined progress and statistics
 - Debug logging and statistics
 - Responsive design with custom CSS
 
@@ -21,14 +20,13 @@ Based on LangChain's official documentation and best practices.
 
 import asyncio
 from collections.abc import AsyncGenerator
-import json
 import logging
 import os
 from pathlib import Path
 from queue import Empty, Queue
 import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 import uuid
 
 from dotenv import load_dotenv
@@ -65,7 +63,7 @@ except ImportError:
 # Local imports with robust fallback handling
 import sys
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage
 
 # Set LangChain verbose mode using new pattern (suppresses deprecation warning)
 try:
@@ -114,22 +112,18 @@ try:
         begin_turn_with_generating_answer,
         complete_generating_answer_bubble,
         complete_reasoning_bubble,
-        complete_tool_call_bubble,
         short_uid,
         update_reasoning_bubble,
         upsert_generating_answer_bubble,
-        upsert_tool_call_bubble,
     )
 except ImportError:
     from .chat_stream_ui import (  # type: ignore[no-redef]
         begin_turn_with_generating_answer,
         complete_generating_answer_bubble,
         complete_reasoning_bubble,
-        complete_tool_call_bubble,
         short_uid,
         update_reasoning_bubble,
         upsert_generating_answer_bubble,
-        upsert_tool_call_bubble,
     )
 
 
@@ -154,7 +148,6 @@ _GRADIO_RESOURCES_DIR = Path(__file__).resolve().parent.parent / "resources"
 try:
     from agent_ng.debug_streamer import (
         LogCategory,
-        LogLevel,
         get_debug_streamer,
         get_log_handler,
     )
@@ -163,7 +156,6 @@ try:
         format_translation,
         get_translation_key,
     )
-    from agent_ng.langchain_agent import ChatMessage
     from agent_ng.langchain_agent import CmwAgent as NextGenAgent
     from agent_ng.llm_manager import get_llm_manager
     from agent_ng.openai_compat import (
@@ -177,7 +169,6 @@ try:
         ConfigTab,
         DownloadsTab,
         HomeTab,
-        LogsTab,
         Sidebar,
         StatsTab,
     )
@@ -191,7 +182,6 @@ except ImportError as e1:
     try:
         from .debug_streamer import (
             LogCategory,
-            LogLevel,
             get_debug_streamer,
             get_log_handler,
         )
@@ -200,7 +190,6 @@ except ImportError as e1:
             format_translation,
             get_translation_key,
         )
-        from .langchain_agent import ChatMessage
         from .langchain_agent import CmwAgent as NextGenAgent
         from .llm_manager import get_llm_manager
         from .openai_compat import (
@@ -214,7 +203,6 @@ except ImportError as e1:
             ConfigTab,
             DownloadsTab,
             HomeTab,
-            LogsTab,
             Sidebar,
             StatsTab,
         )
@@ -405,7 +393,7 @@ class NextGenApp:
             "Starting session manager initialization", LogCategory.INIT
         )
         self.initialization_logs.append(
-            "🚀 " + get_translation_key("logs_initializing", self.language)
+            "🚀 " + get_translation_key("status_initializing", self.language)
         )
 
         try:
@@ -745,8 +733,7 @@ class NextGenApp:
 
             # Initialize response
             # Per-turn accumulator for tool costs (e.g. image generation).
-            # Added to session/conversation totals via add_tool_cost() and
-            # displayed alongside LLM cost in the stats bubble.
+            # Added to session/conversation totals via add_tool_cost().
             tool_costs_this_turn: float = 0.0
 
             # User message + generating-answer bubble (first visible status UI).
@@ -760,26 +747,12 @@ class NextGenApp:
             )
             generating_answer_pending = True
 
-            # Get prompt token count for user message (will be displayed below assistant response)
-            # History is already in Gradio 6 messages format: list[dict[str, str]]
-            prompt_tokens = None
-            if user_agent:
-                try:
-                    prompt_tokens = user_agent.count_prompt_tokens_for_chat(
-                        history, message
-                    )
-                except Exception as e:
-                    # Use session-specific debug streamer
-                    session_debug = get_debug_streamer(session_id)
-                    session_debug.warning(f"Failed to get prompt token count: {e}")
-
             yield working_history, ""
 
             # Stream response using simple streaming
             response_content = (
                 ""  # Initialize as empty string to prevent None concatenation
             )
-            tool_usage = ""
             assistant_message_index = (
                 -1
             )  # Track the index of the assistant message in working_history
@@ -904,16 +877,7 @@ class NextGenApp:
                         yield working_history, ""
 
                     elif event_type == "budget_update":
-                        # Budget snapshot was refreshed - token budget display will update via timer
-                        # Why timer instead of immediate update?
-                        # - Budget snapshots are computed at specific "budget moments" (pre-iteration, post-tool),
-                        #   not on every streaming chunk, so updates are infrequent enough that timer is efficient
-                        # - Timer interval (UI_REFRESH_INTERVAL, typically 2-5s) ensures prompt updates
-                        #   without overwhelming the UI with too frequent updates
-                        # - To update immediately, we'd need to add token_budget_display as an output to the
-                        #   streaming generator, which would require significant refactoring of the generator signature
-                        # - Timer approach matches Gradio 5 behavior and provides good UX with minimal complexity
-                        # Continue streaming - timer will pick up the updated snapshot within 2-5 seconds
+                        # Budget accounting remains in the backend; it is hidden in UI.
                         yield working_history, ""
                         continue
 
@@ -942,7 +906,8 @@ class NextGenApp:
                         yield working_history, ""
 
                     elif event_type == "tool_start":
-                        # generating_answer survives tool calls; cleanup at turn end only.
+                        # Tool execution stays in diagnostics and is intentionally
+                        # not rendered as a chat bubble.
                         tool_name = (
                             metadata.get("tool_name", "unknown")
                             if metadata
@@ -951,30 +916,21 @@ class NextGenApp:
                         tool_call_id = (
                             metadata.get("tool_call_id") if metadata else None
                         )
-                        tool_title = (
-                            metadata.get(
-                                "title",
-                                format_translation(
-                                    "tool_called", self.language, tool_name=tool_name
-                                ),
-                            )
-                            if metadata
-                            else format_translation(
-                                "tool_called", self.language, tool_name="unknown"
-                            )
+                        session_debug.info(
+                            f"tool_start: {tool_name} (call_id={tool_call_id})",
+                            LogCategory.TOOL,
                         )
-
-                        upsert_tool_call_bubble(
-                            working_history,
+                        _logger.info(
+                            "tool_start: %s (call_id=%s, session=%s)",
                             tool_name,
                             tool_call_id,
-                            title=tool_title,
-                            content=safe_string(content) or tool_title,
+                            session_id,
                         )
                         yield working_history, ""
 
                     elif event_type == "tool_end":
-                        # Tool completed - update the pending bubble in place.
+                        # Tool execution stays in diagnostics; only generated
+                        # file attachments remain visible in the conversation.
                         tool_name = (
                             metadata.get("tool_name", "unknown")
                             if metadata
@@ -983,57 +939,32 @@ class NextGenApp:
                         tool_call_id = (
                             metadata.get("tool_call_id") if metadata else None
                         )
-                        tool_title = (
-                            metadata.get(
-                                "title",
-                                format_translation(
-                                    "tool_called", self.language, tool_name=tool_name
-                                ),
-                            )
-                            if metadata
-                            else format_translation(
-                                "tool_called", self.language, tool_name="unknown"
-                            )
+                        duration = metadata.get("duration") if metadata else None
+                        duplicate = metadata.get("duplicate") if metadata else None
+                        tool_cost = metadata.get("tool_cost") if metadata else None
+                        session_debug.info(
+                            "tool_end: "
+                            f"{tool_name} (call_id={tool_call_id}, "
+                            f"duration={duration}, duplicate={duplicate}, "
+                            f"cost={tool_cost})",
+                            LogCategory.TOOL,
+                        )
+                        _logger.info(
+                            "tool_end: %s (call_id=%s, duration=%s, "
+                            "duplicate=%s, cost=%s, session=%s)",
+                            tool_name,
+                            tool_call_id,
+                            duration,
+                            duplicate,
+                            tool_cost,
+                            session_id,
                         )
 
-                        complete_tool_call_bubble(
-                            working_history,
-                            tool_name=tool_name,
-                            tool_call_id=tool_call_id,
-                            content=safe_string(content),
-                            title=tool_title,
-                            metadata={
-                                key: value
-                                for key, value in {
-                                    "duration": metadata.get("duration")
-                                    if metadata
-                                    else None,
-                                    "duplicate": metadata.get("duplicate")
-                                    if metadata
-                                    else None,
-                                    "duplicate_count": metadata.get("duplicate_count")
-                                    if metadata
-                                    else None,
-                                    "tool_cost": metadata.get("tool_cost")
-                                    if metadata
-                                    else None,
-                                    "tool_output": metadata.get("tool_output")
-                                    if metadata
-                                    else None,
-                                }.items()
-                                if value is not None
-                            },
-                        )
-
-                        # If the tool registered a file, append an inline
-                        # preview bubble + caption directly in the chat.
                         file_att = metadata.get("file_attachment") if metadata else None
                         working_history.extend(build_file_bubbles(file_att))
 
-                        # Accumulate any out-of-band tool cost (e.g. image
-                        # generation). Feeds session_cost / conversation_cost
-                        # so every cost display reflects the true total.
-                        tc = metadata.get("tool_cost") if metadata else None
+                        # Keep backend tool-cost accounting unchanged.
+                        tc = tool_cost
                         if tc and isinstance(tc, (int, float)) and tc > 0:
                             tool_costs_this_turn += tc
                             if (
@@ -1160,171 +1091,56 @@ class NextGenApp:
             if reasoning_bubble_id is not None:
                 complete_reasoning_bubble(working_history, reasoning_bubble_id)
 
-            # Add API token count to final response
-            # Add token counts below assistant response
-            token_displays = []
-
-            # Add prompt tokens if available
-            if prompt_tokens:
-                token_displays.append(
-                    format_translation(
-                        "prompt_tokens",
-                        self.language,
-                        tokens=prompt_tokens.formatted_no_cost,
-                    )
-                )
-
-            # Add API tokens if available from session-specific agent
-            if user_agent:
-                try:
-                    # print(f"🔍 DEBUG: Getting last API tokens from session agent")
-                    last_api_tokens = user_agent.get_last_api_tokens()
-                    # print(f"🔍 DEBUG: Last API tokens: {last_api_tokens}")
-                    if last_api_tokens:
-                        token_displays.append(
-                            format_translation(
-                                "api_tokens",
-                                self.language,
-                                tokens=last_api_tokens.formatted_no_cost,
-                            )
-                        )
-                        # print(f"🔍 DEBUG: Added API token display")
-                    else:
-                        # print("🔍 DEBUG: No API tokens available")
-                        pass
-                except Exception as e:
-                    # print(f"🔍 DEBUG: API token error: {e}")
-                    # Use session-specific debug streamer
-                    session_debug = get_debug_streamer(session_id)
-                    session_debug.warning(f"Failed to get API token count: {e}")
-
-            # Add provider/model information if available - use session-specific agent
+            # Simplified end-of-turn metadata: one provider/model line.
+            provider_model_display: str | None = None
             if user_agent and hasattr(user_agent, "get_llm_info"):
                 try:
                     llm_info = user_agent.get_llm_info()
                     if llm_info and "provider" in llm_info and "model_name" in llm_info:
-                        provider = llm_info.get("provider", "Unknown")
-                        model = llm_info.get("model_name", "Unknown")
-                        token_displays.append(
-                            format_translation(
-                                "provider_model",
-                                self.language,
-                                provider=provider,
-                                model=model,
-                            )
+                        provider_model_display = format_translation(
+                            "provider_model_line",
+                            self.language,
+                            provider=llm_info.get("provider", "Unknown"),
+                            model=llm_info.get("model_name", "Unknown"),
                         )
-                        # print(f"🔍 DEBUG: Added provider/model display: {provider} / {model}")
-                except Exception as e:
-                    # print(f"🔍 DEBUG: Provider/model display error: {e}")
-                    # Use session-specific debug streamer
-                    session_debug = get_debug_streamer(session_id)
-                    session_debug.warning(f"Failed to get provider/model info: {e}")
-
-            # Calculate execution time for the entire response
-            execution_time = time.time() - start_time
-
-            # Add deduplication stats if available from session-specific agent
-            if user_agent and hasattr(user_agent, "_deduplication_stats"):
-                dedup_stats = user_agent._deduplication_stats.get(session_id, {})
-                if dedup_stats:
-                    dedup_summary = []
-                    total_duplicates = 0
-                    total_tool_calls = 0
-
-                    for _tool_key, stats in dedup_stats.items():
-                        total_tool_calls += stats["total_calls"]
-                        if stats["duplicates"] > 0:
-                            dedup_summary.append(
-                                f"{stats['tool_name']}: {stats['duplicates']}"
-                            )
-                            total_duplicates += stats["duplicates"]
-
-                    if dedup_summary:
-                        # Show per-tool breakdown
-                        per_tool_breakdown = ", ".join(dedup_summary)
-                        token_displays.append(
-                            format_translation(
-                                "deduplication",
-                                self.language,
-                                duplicates=total_duplicates,
-                                breakdown=per_tool_breakdown,
-                            )
-                        )
-                        # print(f"🔍 DEBUG: Added deduplication stats: {total_duplicates} duplicates")
-
-                    # Add total tool calls count
-                    if total_tool_calls > 0:
-                        token_displays.append(
-                            format_translation(
-                                "total_tool_calls",
-                                self.language,
-                                calls=total_tool_calls,
-                            )
-                        )
-                        # print(f"🔍 DEBUG: Added total tool calls: {total_tool_calls}")
-
-            # Add token statistics as a separate metadata block
-            if token_displays:
-                # Add total cost for this turn (LLM + any tool costs combined).
-                # _turn_cost covers the LLM; tool_costs_this_turn covers tools
-                # that make their own API calls (e.g. image generation).
-                try:
-                    if user_agent and hasattr(user_agent, "token_tracker"):
-                        llm_cost = getattr(user_agent.token_tracker, "_turn_cost", None)
-                        llm_cost = float(llm_cost) if llm_cost else 0.0
                     else:
-                        llm_cost = 0.0
-                    total_cost = llm_cost + tool_costs_this_turn
-                    if total_cost > 0:
-                        token_displays.append(
-                            format_translation(
-                                "turn_cost",
-                                self.language,
-                                cost=f"${total_cost:.4f}",
-                            )
+                        provider_model_display = format_translation(
+                            "provider_model_line",
+                            self.language,
+                            provider="Unknown",
+                            model="Unknown",
                         )
-                except Exception:
-                    pass  # Never let cost display break the stats bubble
-
-                # Add execution time to the token display
-                token_displays.append(
-                    format_translation(
-                        "execution_time", self.language, time=execution_time
+                except Exception as e:
+                    session_debug.warning(f"Failed to get provider/model info: {e}")
+                    provider_model_display = format_translation(
+                        "provider_model_line",
+                        self.language,
+                        provider="Unknown",
+                        model="Unknown",
                     )
+            else:
+                provider_model_display = format_translation(
+                    "provider_model_line",
+                    self.language,
+                    provider="Unknown",
+                    model="Unknown",
                 )
-                token_display = "\n".join(token_displays)
-                # Create a separate metadata block for token statistics
-                token_metadata_message = {
-                    "role": "assistant",
-                    "content": token_display,
-                    "metadata": {
-                        "title": format_translation(
-                            "token_statistics_title", self.language
-                        )
-                    },
-                }
-                working_history.append(token_metadata_message)
-                # print(f"🔍 DEBUG: Added token metadata block: {token_display}")
 
-            # Tool messages are now added immediately during streaming, no need to add them here
-            # Ensure tool messages are preserved and not overwritten
-            # print(f"🔍 DEBUG: Final working history length: {len(working_history)}")
-            for i, msg in enumerate(working_history):
-                # Safety check for None first - before any method calls
-                if msg is None:
-                    # print(f"🔍 DEBUG: Message {i} is None, skipping...")
-                    continue
-                if not isinstance(msg, dict):
-                    # print(f"🔍 DEBUG: Message {i} is not a dict (type: {type(msg)}), skipping...")
-                    continue
-                # Additional safety for metadata access
-                metadata = msg.get("metadata") if msg else None
-                if metadata and metadata.get("title"):
-                    # print(f"🔍 DEBUG: Tool message {i}: {metadata.get('title', 'No title')}")
-                    pass
-                elif msg and msg.get("role") == "assistant":
-                    # print(f"🔍 DEBUG: Assistant message {i}: {len(msg.get('content', ''))} chars")
-                    pass
+            execution_time = time.time() - start_time
+            session_debug.info(
+                f"turn_complete: duration={execution_time:.2f}s",
+                LogCategory.STREAM,
+            )
+
+            if provider_model_display:
+                working_history.append(
+                    {
+                        "role": "assistant",
+                        "content": provider_model_display,
+                    }
+                )
+
+            # Tool events are kept out of the chat; no post-processing needed.
 
             # Stop processing state (per-session)
             self.stop_processing(session_id)
@@ -1385,9 +1201,7 @@ class NextGenApp:
             "clear_chat": self.clear_conversation,
             # Status and monitoring handlers
             "update_status": self._update_status,
-            "update_token_budget": self._update_token_budget,
             "sync_llm_dropdown_from_session": self._sync_llm_dropdown_from_session,
-            "refresh_logs": self._refresh_logs,
             "refresh_stats": self._refresh_stats,
             "update_all_ui": self.update_all_ui_components,
             "trigger_ui_update": self.trigger_ui_update,
@@ -1440,26 +1254,6 @@ class NextGenApp:
         """Update Statistics tab (same content as full stats refresh)."""
         return self._refresh_stats(request)
 
-    def _update_token_budget(self, request: gr.Request = None) -> str:
-        """Update token budget display - delegates to chat tab with session awareness"""
-        chat_tab = self.tab_instances.get("chat")
-        if chat_tab and hasattr(chat_tab, "format_token_budget_display"):
-            return chat_tab.format_token_budget_display(request)
-        return get_translation_key("token_budget_initializing", self.language)
-
-    def _refresh_logs(self, request: gr.Request = None) -> str:
-        """Refresh logs display - delegates to logs tab with session awareness"""
-        logs_tab = self.tab_instances.get("logs")
-        if logs_tab and hasattr(logs_tab, "get_initialization_logs"):
-            return logs_tab.get_initialization_logs(request)
-
-        # Fallback logs
-        return (
-            "\n".join(self.initialization_logs)
-            if self.initialization_logs
-            else "No logs available"
-        )
-
     def _refresh_stats(self, request: gr.Request = None) -> str:
         """Refresh stats display - delegates to stats tab with session awareness"""
         stats_tab = self.tab_instances.get("stats")
@@ -1491,11 +1285,10 @@ class NextGenApp:
 
     def update_all_ui_components(
         self, request: gr.Request = None
-    ) -> tuple[str, str, str, str]:
-        """Refresh stats block (three outputs) + logs (session-aware)."""
+    ) -> tuple[str, str, str]:
+        """Refresh the shared statistics block outputs."""
         stats = self._refresh_stats(request)
-        logs = self._refresh_logs(request)
-        return stats, stats, stats, logs
+        return stats, stats, stats
 
     def trigger_ui_update(self):
         """Trigger UI update after agent initialization or message processing"""
@@ -1580,8 +1373,8 @@ class NextGenApp:
             else:
                 _logger.warning("DownloadsTab not available")
 
-            # Config tab is always shown. CMW_USE_DOTENV only switches platform
-            # credentials: .env vs browser (see ConfigTab).
+            # Model tab is always shown; platform credentials and API keys
+            # are configured outside this simplified UI.
             if ConfigTab:
                 config_tab = ConfigTab(
                     event_handlers, language=self.language, i18n_instance=self.i18n
@@ -1591,17 +1384,7 @@ class NextGenApp:
                 tab_modules.append(config_tab)
                 self.tab_instances["config"] = config_tab
             else:
-                _logger.info("ConfigTab class unavailable; skipping config tab")
-
-            if LogsTab:
-                logs_tab = LogsTab(
-                    event_handlers, language=self.language, i18n_instance=self.i18n
-                )
-                logs_tab.set_main_app(self)
-                tab_modules.append(logs_tab)
-                self.tab_instances["logs"] = logs_tab
-            else:
-                _logger.warning("LogsTab not available")
+                _logger.info("ConfigTab class unavailable; skipping model tab")
         except Exception as e:
             _logger.exception("Error creating tab modules: %s", e)
             raise
