@@ -898,7 +898,11 @@ class LLMManager:
         return self.get_llm(provider, use_tools=True, model_index=model_index)
 
     def create_new_llm_instance(
-        self, provider: str, model_index: int = 0, api_key_override: str | None = None
+        self,
+        provider: str,
+        model_index: int = 0,
+        api_key_override: str | None = None,
+        tools: list[Any] | None = None,
     ) -> LLMInstance | None:
         """
         Create a NEW LLM instance for the specified provider (not cached).
@@ -908,6 +912,8 @@ class LLMManager:
             provider: Provider name (e.g., "gemini", "groq")
             model_index: Index of the model to use (0 for first model)
             api_key_override: Optional API key to use instead of env var
+            tools: Optional session-specific tool list. When omitted, the
+                manager's base native/MCP catalog is used.
 
         Returns:
             LLMInstance or None if initialization failed
@@ -932,7 +938,7 @@ class LLMManager:
         if instance:
             # Bind tools if provider supports them
             if self.LLM_CONFIGS.get(provider_enum, {}).tool_support:
-                tools_list = self.get_tools()
+                tools_list = tools if tools is not None else self.get_tools()
                 if tools_list:
                     try:
                         instance.llm = instance.llm.bind_tools(tools_list)
@@ -1170,7 +1176,7 @@ class LLMManager:
         removed entirely. Root-level ``tools.tools`` and friends are not bound.
         """
         if hasattr(self, "_cached_tools"):
-            return self._cached_tools
+            return list(self._cached_tools)
 
         tool_list: list[Any] = []
         tool_names: set[str] = set()
@@ -1255,8 +1261,8 @@ class LLMManager:
         if is_mcp_enabled():
             tool_list = merge_tools(tool_list, get_cached_mcp_tools())
 
-        self._cached_tools = tool_list
-        return tool_list
+        self._cached_tools = list(tool_list)
+        return list(self._cached_tools)
 
     def _load_tools_from_module(
         self,
