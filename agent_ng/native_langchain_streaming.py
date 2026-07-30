@@ -64,7 +64,11 @@ from .token_budget import (
     count_tokens,
 )
 from .tool_deduplicator import get_deduplicator
-from .tool_invocation import ainvoke_agent_tool, tool_requires_async_invocation
+from .tool_invocation import (
+    ainvoke_agent_tool,
+    tool_declares_runtime_injectable,
+    tool_requires_async_invocation,
+)
 
 # LangSmith tracing
 @dataclass
@@ -84,6 +88,38 @@ def _tool_duration_seconds(tool_state: dict[str, Any] | None) -> float | None:
     if not isinstance(started_at, (int, float)):
         return None
     return round(max(time.perf_counter() - float(started_at), 0.0), 3)
+
+
+def _partition_tool_calls_for_skill_loading(
+    tool_calls: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Apply a model-turn barrier when a skill is being loaded.
+
+    Tool arguments for one assistant message are chosen before any tool result
+    is available. Therefore, calls made alongside ``load_skill`` cannot yet
+    follow that skill's instructions. Execute only ``load_skill`` calls in
+    such a batch and ask the model to reconsider the remaining calls on its
+    next turn.
+    """
+    if not any(
+        isinstance(tool_call, dict) and tool_call.get("name") == "load_skill"
+        for tool_call in tool_calls
+    ):
+        return tool_calls, []
+
+    executable = [
+        tool_call
+        for tool_call in tool_calls
+        if isinstance(tool_call, dict) and tool_call.get("name") == "load_skill"
+    ]
+    deferred = [
+        tool_call
+        for tool_call in tool_calls
+        if not (
+            isinstance(tool_call, dict) and tool_call.get("name") == "load_skill"
+        )
+    ]
+    return executable, deferred
 
 
 class NativeLangChainStreaming:
@@ -882,7 +918,69 @@ class NativeLangChainStreaming:
                     # STEP 2: Execute only deduplicated tool calls and create result mapping
                     tool_result_cache = {}  # Map tool_key -> result for duplicate handling
 
-                    for tool_call in deduplicated_tool_calls:
+                    executable_tool_calls, deferred_tool_calls = (
+                        _partition_tool_calls_for_skill_loading(
+                            deduplicated_tool_calls
+                        )
+                    )
+
+                    # A model chooses all calls in a batch before seeing any
+                    # result. Calls accompanying load_skill therefore cannot
+                    # know the skill contract yet. Complete them as deferred
+                    # (not executed), then let the next model turn reissue only
+                    # the calls that remain appropriate.
+                    for tool_call in deferred_tool_calls:
+                        if not tool_call or not isinstance(tool_call, dict):
+                            continue
+                        tool_name = tool_call.get("name")
+                        tool_args = tool_call.get("args", {})
+                        tool_call_id = tool_call.get("id")
+                        if not tool_name or not tool_call_id:
+                            continue
+
+                        safe_tool_args = (
+                            tool_args if isinstance(tool_args, dict) else {}
+                        )
+                        try:
+                            tool_key = (
+                                f"{tool_name}:"
+                                f"{hash(json.dumps(safe_tool_args, sort_keys=True, default=str))}"
+                            )
+                        except Exception:
+                            tool_key = f"{tool_name}:{hash(str(safe_tool_args))}"
+                        duplicate_count = duplicate_counts.get(tool_key, 1)
+                        deferred_result = (
+                            "Tool call deferred and not executed because "
+                            "`load_skill` was requested in the same assistant "
+                            "turn. Read the loaded skill instructions first, "
+                            "then decide whether to issue a new tool call with "
+                            "skill-approved arguments."
+                        )
+                        tool_result_cache[tool_key] = deferred_result
+                        tool_state = tool_calls_in_progress.get(tool_call_id)
+
+                        yield StreamingEvent(
+                            event_type="tool_end",
+                            content=(
+                                f"\n{self._get_call_count_message(duplicate_count, language)}"
+                                f"\n\n{self._get_result_message(deferred_result, language)}"
+                            ),
+                            metadata={
+                                "tool_name": tool_name,
+                                "tool_call_id": tool_call_id,
+                                "tool_output": deferred_result,
+                                "duplicate": duplicate_count > 1,
+                                "duplicate_count": duplicate_count,
+                                "deferred_for_skill_loading": True,
+                                "title": self._get_tool_called_message(
+                                    tool_name, language
+                                ),
+                                "duration": _tool_duration_seconds(tool_state),
+                            },
+                        )
+                        tool_calls_in_progress.pop(tool_call_id, None)
+
+                    for tool_call in executable_tool_calls:
                         # Essential safety check for None tool_call
                         if not tool_call or not isinstance(tool_call, dict):
                             continue
@@ -909,10 +1007,15 @@ class NativeLangChainStreaming:
 
                             try:
                                 if tool_obj:
-                                    # Execute tool once; inject agent only for native tools
-                                    # (MCP coroutine tools JSON-serialize args — CmwAgent is invalid)
+                                    # Inject agent only into native tools that
+                                    # explicitly declare the hidden runtime field.
                                     tool_args_with_agent = dict(safe_tool_args)
-                                    if not tool_requires_async_invocation(tool_obj):
+                                    if (
+                                        not tool_requires_async_invocation(tool_obj)
+                                        and tool_declares_runtime_injectable(
+                                            tool_obj, "agent"
+                                        )
+                                    ):
                                         tool_args_with_agent["agent"] = agent
                                     # Ensure session-bound config is visible to backend tools
                                     try:

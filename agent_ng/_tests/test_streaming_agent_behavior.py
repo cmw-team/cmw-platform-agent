@@ -17,6 +17,50 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent_ng import NextGenAgent
 from agent_ng.llm_manager import get_llm_manager
+from agent_ng.native_langchain_streaming import (
+    _partition_tool_calls_for_skill_loading,
+)
+
+
+def test_load_skill_defers_other_tools_from_same_model_batch():
+    """Business tools must wait until the model has read the loaded skill."""
+    tool_calls = [
+        {
+            "name": "load_skill",
+            "args": {"name": "cmw-prepare-lead-questions"},
+            "id": "load-1",
+        },
+        {
+            "name": "get_record_values",
+            "args": {
+                "record_ids": ["10656111"],
+                "attributes": ["email", "phone"],
+            },
+            "id": "crm-1",
+        },
+    ]
+
+    executable, deferred = _partition_tool_calls_for_skill_loading(tool_calls)
+
+    assert [call["name"] for call in executable] == ["load_skill"]
+    assert [call["name"] for call in deferred] == ["get_record_values"]
+
+
+def test_regular_tool_batch_is_not_changed():
+    """Unrelated tool batches keep their current execution behaviour."""
+    tool_calls = [
+        {"name": "web_search", "args": {"query": "Comindware"}, "id": "web-1"},
+        {
+            "name": "get_record_values",
+            "args": {"record_ids": ["1"], "attributes": ["Area"]},
+            "id": "crm-1",
+        },
+    ]
+
+    executable, deferred = _partition_tool_calls_for_skill_loading(tool_calls)
+
+    assert executable == tool_calls
+    assert deferred == []
 
 
 class TestStreamingAgentBehavior:

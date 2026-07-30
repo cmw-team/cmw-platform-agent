@@ -31,11 +31,13 @@ from langchain_core.output_parsers import StrOutputParser
 try:
     from .tool_invocation import (
         invoke_agent_tool_blocking,
+        tool_declares_runtime_injectable,
         tool_requires_async_invocation,
     )
 except ImportError:
     from agent_ng.tool_invocation import (
         invoke_agent_tool_blocking,
+        tool_declares_runtime_injectable,
         tool_requires_async_invocation,
     )
 
@@ -470,12 +472,13 @@ class LangChainConversationChain:
             if not tool_func:
                 return f"Error: Tool '{tool_name}' not found"
 
-            # Inject agent for native file-resolution tools only (not MCP coroutine tools)
+            # Inject agent only when a native tool declares the hidden field.
             invoke_args = dict(tool_args)
             if (
                 hasattr(self, "agent")
                 and self.agent
                 and not tool_requires_async_invocation(tool_func)
+                and tool_declares_runtime_injectable(tool_func, "agent")
             ):
                 invoke_args["agent"] = self.agent
 

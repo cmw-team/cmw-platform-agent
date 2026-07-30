@@ -205,3 +205,11 @@ def test_tools_have_descriptions(tmp_path: Path) -> None:
     for tool in tools:
         assert tool.description
         assert len(tool.description) > 20
+
+
+def test_load_skill_description_requires_separate_model_turn() -> None:
+    tools = build_skill_tools(Path(__file__).parent)
+    load_skill = next(t for t in tools if t.name == "load_skill")
+
+    assert "call this tool by itself" in load_skill.description.lower()
+    assert "wait for the result" in load_skill.description.lower()

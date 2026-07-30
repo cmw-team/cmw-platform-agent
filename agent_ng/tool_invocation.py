@@ -8,6 +8,7 @@ MCP tools from langchain-mcp-adapters are coroutine-only StructuredTool instance
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from typing import Any
 
 # Native-only injectables (InjectedToolArg); omit from MCP JSON payloads.
@@ -20,6 +21,41 @@ def tool_requires_async_invocation(tool: Any) -> bool:
         getattr(tool, "coroutine", None) is not None
         and getattr(tool, "func", None) is None
     )
+
+
+def _schema_field_names(schema: Any) -> frozenset[str]:
+    """Return field names from a JSON or Pydantic tool schema."""
+    if isinstance(schema, Mapping):
+        properties = schema.get("properties", {})
+        return (
+            frozenset(properties)
+            if isinstance(properties, Mapping)
+            else frozenset()
+        )
+
+    model_fields = getattr(schema, "model_fields", None)
+    if isinstance(model_fields, Mapping):
+        return frozenset(model_fields)
+
+    legacy_fields = getattr(schema, "__fields__", None)
+    if isinstance(legacy_fields, Mapping):
+        return frozenset(legacy_fields)
+
+    return frozenset()
+
+
+def tool_declares_runtime_injectable(tool: Any, key: str) -> bool:
+    """Return whether a native tool explicitly declares a hidden runtime field."""
+    if key not in _RUNTIME_INJECTABLE_KEYS:
+        return False
+
+    get_input_schema = getattr(tool, "get_input_schema", None)
+    if not callable(get_input_schema):
+        return False
+
+    full_fields = _schema_field_names(get_input_schema())
+    model_fields = _schema_field_names(getattr(tool, "tool_call_schema", None))
+    return key in full_fields - model_fields
 
 
 def prepare_tool_input(tool: Any, tool_input: dict[str, Any]) -> dict[str, Any]:

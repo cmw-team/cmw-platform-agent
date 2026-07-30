@@ -160,6 +160,8 @@ def build_skill_tools(
             description=(
                 "Load a skill's instructions into context. Use when the user "
                 "asks a task that matches a known skill's description. "
+                "Call this tool by itself and wait for the result before "
+                "choosing or calling any other tool. "
                 "Returns the skill body and marks it active for the session."
             ),
         ),
