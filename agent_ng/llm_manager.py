@@ -1163,6 +1163,8 @@ class LLMManager:
         * ``transcribe_uploaded_media`` and ``save_meeting_markdown`` from
           ``tools.media_tools`` — audio/video transcription through the Polza
           API and creation of downloadable meeting artifacts.
+        * ``web_search`` from ``tools.search_tools`` — optional Tavily search,
+          registered only when explicitly enabled and configured.
 
         ``tools.applications_tools`` and ``tools.attributes_tools`` were
         removed entirely. Root-level ``tools.tools`` and friends are not bound.
@@ -1211,6 +1213,34 @@ class LLMManager:
         except ImportError:
             self._log_initialization(
                 "Could not import tools.media_tools module", "WARNING"
+            )
+
+        web_search_enabled = _parse_bool(
+            os.getenv("CMW_WEB_SEARCH_ENABLED"),
+            default=False,
+        )
+        tavily_api_key_configured = bool(
+            (os.getenv("TAVILY_API_KEY") or "").strip()
+        )
+        if web_search_enabled and tavily_api_key_configured:
+            try:
+                import tools.search_tools as search_tools_module
+
+                self._load_tools_from_module(
+                    search_tools_module,
+                    tool_list,
+                    "tools.search_tools",
+                    tool_names,
+                )
+            except ImportError:
+                self._log_initialization(
+                    "Could not import tools.search_tools module",
+                    "WARNING",
+                )
+        elif web_search_enabled:
+            self._log_initialization(
+                "Web search is enabled but TAVILY_API_KEY is not configured",
+                "WARNING",
             )
 
         try:

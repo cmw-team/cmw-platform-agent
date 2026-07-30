@@ -21,16 +21,34 @@ description: Адаптирует 10 квалификационных вопро
 
 ## Обязательные материалы
 
-Перед составлением вопросов прочитай:
+Перед составлением вопросов вызови `load_skill_reference` отдельно для каждого
+обязательного файла:
 
-1. [references\brief-short.md](references\brief-short.md) — стартовые 10 вопросов.
-2. [references\question-bank.md](references\question-bank.md) — банк замен.
-3. [references\output-example.md](references\output-example.md) — эталон формата.
+```json
+{"skill_name": "cmw-prepare-lead-questions", "reference_path": "brief-short.md"}
+```
 
-При использовании поиска дополнительно прочитай:
+```json
+{"skill_name": "cmw-prepare-lead-questions", "reference_path": "question-bank.md"}
+```
 
-- [references\knowledge-base-search.md](references\knowledge-base-search.md);
-- [references\web-research.md](references\web-research.md).
+```json
+{"skill_name": "cmw-prepare-lead-questions", "reference_path": "output-example.md"}
+```
+
+При использовании KB или веб-поиска дополнительно загрузи соответствующую
+инструкцию:
+
+```json
+{"skill_name": "cmw-prepare-lead-questions", "reference_path": "knowledge-base-search.md"}
+```
+
+```json
+{"skill_name": "cmw-prepare-lead-questions", "reference_path": "web-research.md"}
+```
+
+`reference_path` задаётся относительно папки `references`: никогда не добавляй
+к нему префикс `references/` повторно.
 
 Пользователь не обязан прикладывать брифы: используй встроенные references.
 
@@ -54,7 +72,8 @@ description: Адаптирует 10 квалификационных вопро
 ### Если есть ID лида
 
 Используй `get_record_values`. Значения каждого вызова находятся по пути
-`data[record_id][attribute_alias]`. `null` для любого атрибута — нормальный
+`data[record_id][attribute_alias]`. Передавай ID в параметре `record_ids`
+списком, даже если ID один. `null` для любого атрибута — нормальный
 результат: не считай его ошибкой и не выдумывай значение.
 
 Выполни последовательность:
@@ -63,7 +82,7 @@ description: Адаптирует 10 квалификационных вопро
 
    ```json
    {
-     "record_id": "<ID лида>",
+     "record_ids": ["<ID лида>"],
      "attribute_system_names": ["Area", "Zaprosy", "Kompaniya", "INN"]
    }
    ```
@@ -72,7 +91,7 @@ description: Адаптирует 10 квалификационных вопро
 
    ```json
    {
-     "record_id": "<ID из Area>",
+     "record_ids": ["<ID из Area>"],
      "attribute_system_names": ["TitleCalc"]
    }
    ```
@@ -80,12 +99,12 @@ description: Адаптирует 10 квалификационных вопро
    Используй `TitleCalc` как название отрасли или направления, только если
    значение действительно получено.
 
-3. Если `Zaprosy` содержит один или несколько непустых ID, для каждого такого
-   ID вызови tool ещё раз:
+3. Если `Zaprosy` содержит один или несколько непустых ID, передай все такие
+   ID одним вызовом:
 
    ```json
    {
-     "record_id": "<ID из Zaprosy>",
+     "record_ids": ["<первый ID из Zaprosy>", "<следующий ID из Zaprosy>"],
      "attribute_system_names": ["Opisaniezaprosa"]
    }
    ```
@@ -169,15 +188,24 @@ email.
 пытайся идентифицировать компанию веб-поиском. Используй другие доступные
 данные или запроси нужное уточнение по правилам skill.
 
-Если доступен веб-поиск и есть хотя бы один идентификатор, действуй по порядку:
+Если tool `web_search` доступен и есть хотя бы один идентификатор, действуй по
+порядку:
 
 1. Используй ИНН как основной идентификатор; корпоративный домен — как запасной.
    Не используй личные почтовые домены.
 2. Если название компании уже известно, включи его в поисковый запрос вместе с
    ИНН или доменом. Если доступны только название компании, ищи по нему.
-3. Установи официальное название компании и найди её официальный сайт.
-4. Ознакомься с общедоступным описанием деятельности на официальном сайте.
-5. Используй сведения о деятельности только как контекст для персонализации
+3. Вызови `web_search` с одним узким запросом по форме:
+
+   ```json
+   {"query": "<доступные идентификаторы> официальный сайт"}
+   ```
+
+4. По `data.results` найди официальный сайт, сопоставляя `title`, `url` и
+   `content` с доступными идентификаторами. Если официальный сайт неоднозначен,
+   разрешён один дополнительный уточняющий вызов `web_search`.
+5. Ознакомься с общедоступным описанием деятельности по найденным результатам.
+6. Используй сведения о деятельности только как контекст для персонализации
    вопросов.
 
 Не делай вывод о компании только по совпадению названия в поисковой выдаче.
@@ -240,8 +268,8 @@ email.
 
 ### Шаг 4. Исследуй компанию
 
-Используй `web_search` по правилам из
-[references\web-research.md](references\web-research.md).
+Сначала загрузи `web-research.md` через `load_skill_reference` с
+`reference_path: "web-research.md"`, затем вызови `web_search` по его правилам.
 
 Ищи только сведения, которые помогают:
 
@@ -252,8 +280,9 @@ email.
 
 ### Шаг 5. При необходимости проверь базу знаний
 
-Используй `get_knowledge_base_articles` по правилам из
-[references\knowledge-base-search.md](references\knowledge-base-search.md),
+Сначала загрузи `knowledge-base-search.md` через `load_skill_reference` с
+`reference_path: "knowledge-base-search.md"`, затем используй
+`get_knowledge_base_articles` по его правилам,
 если запрос содержит платформенные, процессные или интеграционные требования,
 и знание документации поможет задать более содержательный вопрос.
 

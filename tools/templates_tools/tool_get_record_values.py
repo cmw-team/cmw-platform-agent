@@ -1,4 +1,4 @@
-"""LangChain tool: read attribute values for one record (GetPropertyValues).
+"""LangChain tool: read attribute values for records (GetPropertyValues).
 
 After the 2026-07 cleanup, ``tools.platform_record_document`` was removed.
 The HTTP call is inlined here using the lower-level
@@ -33,10 +33,10 @@ def _fetch_record_field_values(
     attribute_system_names: list[str],
 ) -> dict[str, Any]:
     """
-    Load selected attribute values for a record (TeamNetwork GetPropertyValues).
+    Load selected attribute values for records (TeamNetwork GetPropertyValues).
 
     Returns:
-        success, data: ``{ record_id: { attr_alias: value, ... } }`` or error.
+        success, data: ``{record_id: {attr_alias: value, ...}}`` or error.
     """
     body: dict[str, Any] = {
         "objects": list(record_ids),
@@ -59,19 +59,20 @@ def _fetch_record_field_values(
             "data": None,
             "error": "Unexpected GetPropertyValues response shape",
         }
-    row = inner.get(record_ids, {})
-    if not isinstance(row, dict):
-        row = {}
+    rows: dict[str, dict[str, Any]] = {}
+    for record_id in record_ids:
+        row = inner.get(record_id, {})
+        rows[record_id] = row if isinstance(row, dict) else {}
     return {
         "success": True,
         "status_code": int(result.get("status_code", 0) or 0),
-        "data": {record_ids: row},
+        "data": rows,
         "error": None,
     }
 
 
 class GetRecordValuesSchema(BaseModel):
-    record_id: list[str] = Field(min_length=1, description="Record ids to read.")
+    record_ids: list[str] = Field(min_length=1, description="Record IDs to read.")
     attribute_system_names: list[str] = Field(
         min_length=1,
         description=(
@@ -80,13 +81,14 @@ class GetRecordValuesSchema(BaseModel):
         ),
     )
 
-    @field_validator("record_id", mode="before")
+    @field_validator("record_ids")
     @classmethod
-    def strip_rid(cls, v: Any) -> str:
-        if not isinstance(v, list[str]) or not v.strip():
-            msg = "record_id must be a non-empty list of strings"
+    def strip_record_ids(cls, values: list[str]) -> list[str]:
+        normalized = [value.strip() for value in values]
+        if any(not value for value in normalized):
+            msg = "record_ids must contain only non-empty strings"
             raise ValueError(msg)
-        return v.strip()
+        return normalized
 
 
 @tool(
@@ -98,8 +100,7 @@ def get_record_values(
     record_ids: list[str], attribute_system_names: list[str]
 ) -> dict[str, Any]:
     """
-    Get current values for one or more attributes on a record (by system name). Use before fetch
-    or attach, or whenever you need the live property values for a record.
+    Get current attribute values for one or more records by system name.
     """
     return _fetch_record_field_values(record_ids, attribute_system_names)
 

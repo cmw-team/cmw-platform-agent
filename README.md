@@ -214,6 +214,43 @@ Set up your CMW Platform connection in the Config tab:
 - Username and password
 - Test connection
 
+### Tavily Web Search
+
+Web search is optional and disabled by default. Set both values in the process
+environment or local `.env`:
+
+```dotenv
+CMW_WEB_SEARCH_ENABLED=true
+TAVILY_API_KEY=tvly-your-key
+```
+
+Restart the application after changing either value because the native tool
+list is cached. The search profile is fixed to Tavily `basic`, returns at most
+five results, and costs 1 Tavily credit per request. `country="russia"` boosts
+Russian results but is not a strict geographic filter.
+
+Run the opt-in live smoke test from the current runtime environment:
+
+```powershell
+$env:CMW_TAVILY_INTEGRATION_TESTS = "1"
+.\.venv\Scripts\python.exe -m pytest `
+  agent_ng/_tests/test_tavily_live_integration.py -q
+Remove-Item Env:CMW_TAVILY_INTEGRATION_TESTS
+```
+
+The smoke test makes one real Tavily request and does not call an LLM. For a
+full agent check, ask the agent to use `web_search` for current information and
+include the source URLs in its answer.
+
+If search is unavailable, check the stable error code:
+
+- `authentication_failed`: verify `TAVILY_API_KEY`;
+- `rate_limit`: wait for the request-per-minute limit to reset;
+- `plan_limit` or `paygo_limit`: check Tavily account limits;
+- `service_unavailable`: retry after the network or Tavily service recovers.
+
+Never put a real API key in source files or logs.
+
 ## Key Features
 
 ### Multi-Turn Conversations
