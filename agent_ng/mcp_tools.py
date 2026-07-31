@@ -12,16 +12,20 @@ from __future__ import annotations
 
 import asyncio
 from fnmatch import fnmatch
+import inspect
 import json
 import logging
 import os
 from pathlib import Path
 import re
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import yaml
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 try:
     from .logging_config import _parse_bool
@@ -189,6 +193,35 @@ def _max_mcp_tools() -> int | None:
     return value if value > 0 else None
 
 
+def _build_multi_client_kwargs(
+    *,
+    connections: dict[str, dict[str, Any]],
+    prefix_enabled: bool,
+    interceptor: Any,
+    signature_params: Iterable[str],
+) -> dict[str, Any]:
+    """Build ``MultiServerMCPClient.__init__`` kwargs compatible with the
+    installed ``langchain-mcp-adapters`` version.
+
+    The upstream constructor shape varies across releases:
+    - ``0.1.x`` accepts only ``connections``.
+    - ``0.2.x`` adds ``tool_name_prefix`` and ``tool_interceptors``.
+
+    Anything not in ``signature_params`` is silently dropped so the call site
+    does not raise ``TypeError`` after an upstream bump. Optional features
+    that depend on the dropped kwargs (audit log via ``tool_interceptors``,
+    tool-name prefixing via ``tool_name_prefix``) become no-ops; the loader
+    logs a warning so the regression is visible at startup.
+    """
+    supported = set(signature_params)
+    kwargs: dict[str, Any] = {"connections": connections}
+    if "tool_name_prefix" in supported:
+        kwargs["tool_name_prefix"] = prefix_enabled
+    if "tool_interceptors" in supported:
+        kwargs["tool_interceptors"] = [interceptor]
+    return kwargs
+
+
 async def fetch_mcp_tools_async() -> list[Any]:
     """Load tools from configured MCP servers (async)."""
     if not is_mcp_enabled():
@@ -205,11 +238,25 @@ async def fetch_mcp_tools_async() -> list[Any]:
         logger.info("MCP enabled but registry has no servers after filtering")
         return []
 
-    client = MultiServerMCPClient(
-        connections,
-        tool_name_prefix=_tool_name_prefix_enabled(),
-        tool_interceptors=[_MCPAuditInterceptor()],
+    signature_params = inspect.signature(MultiServerMCPClient.__init__).parameters
+    kwargs = _build_multi_client_kwargs(
+        connections=connections,
+        prefix_enabled=_tool_name_prefix_enabled(),
+        interceptor=_MCPAuditInterceptor(),
+        signature_params=signature_params,
     )
+    if "tool_interceptors" not in kwargs:
+        logger.warning(
+            "Installed langchain-mcp-adapters does not support "
+            "tool_interceptors — MCP audit logging is disabled for this run"
+        )
+    if "tool_name_prefix" not in kwargs:
+        logger.warning(
+            "Installed langchain-mcp-adapters does not support "
+            "tool_name_prefix — MCP tool names will not be prefixed"
+        )
+
+    client = MultiServerMCPClient(**kwargs)
     tools = await client.get_tools()
     cap = _max_mcp_tools()
     if cap is not None and len(tools) > cap:

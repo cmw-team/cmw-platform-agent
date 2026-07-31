@@ -42,7 +42,14 @@ langchain-gigachat==0.3.12
 gigachat==0.1.42.post2
 
 # MCP (Comindware knowledge base tools: ask_comindware, get_knowledge_base_articles)
-langchain-mcp-adapters>=0.1.0
+# Pin matrix (keep all three together):
+#   - langchain-mcp-adapters 0.1.9 needs langchain-core 0.3.79 (no messages.content).
+#   - langchain-mcp-adapters 0.1.9 expects mcp<2 with streamablehttp_client
+#     in mcp.client.streamable_http (last compatible mcp is 1.13.x).
+#   - mcp>=2.0 renamed/removed that symbol -> ImportError at transport=streamable_http.
+# Bump all three together when upgrading.
+langchain-mcp-adapters==0.1.9
+mcp>=1.10,<2
 
 # =============================================================================
 # DATA PROCESSING & ANALYSIS
