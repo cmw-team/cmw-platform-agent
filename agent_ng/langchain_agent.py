@@ -252,7 +252,9 @@ class CmwAgent:
                     )
 
             await self.llm_manager.load_mcp_tools_if_enabled()
-            self.tools = self.llm_manager.get_tools()
+            # ``LLMManager`` owns the process-wide base-tool catalog. Keep a
+            # separate list per agent before adding session-bound skill tools.
+            self.tools = list(self.llm_manager.get_tools())
 
             # Register the three skill tools so the LLM can load / unload
             # skills on its own. They delegate to ``self.activate_skill`` /

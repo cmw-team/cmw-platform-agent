@@ -262,6 +262,7 @@ class SessionManager:
                         provider,
                         model_index,
                         api_key_override=key_override,
+                        tools=agent.tools,
                     )
                     if new_llm_instance:
                         logging.getLogger(__name__).info(
@@ -408,6 +409,7 @@ class SessionData:
             provider_enum.value,
             model_index,
             api_key_override=api_key_override,
+            tools=self.agent.tools,
         )
         if llm_instance:
             self.agent.llm_instance = llm_instance

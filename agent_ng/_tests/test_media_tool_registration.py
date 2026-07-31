@@ -33,7 +33,8 @@ def test_repeated_get_tools_has_no_media_tool_duplicates() -> None:
     first_names = [getattr(tool, "name", None) for tool in first]
     second_names = [getattr(tool, "name", None) for tool in second]
 
-    assert first is second
+    assert first is not second
+    assert all(left is right for left, right in zip(first, second, strict=True))
     assert first_names == second_names
     assert first_names.count("transcribe_uploaded_media") == 1
     assert first_names.count("save_meeting_markdown") == 1
