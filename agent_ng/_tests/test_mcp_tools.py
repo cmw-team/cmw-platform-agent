@@ -42,7 +42,7 @@ def test_tracked_registry_lists_ennoia_producer() -> None:
     assert "comindware_kb" in connections
     url = connections["comindware_kb"]["url"]
     assert "ennoia.slickjump.org" in url
-    assert "ask_comindware" in url
+    assert "get_knowledge_base_articles" in url
     assert connections["comindware_kb"]["transport"] == "streamable_http"
 
 
@@ -177,7 +177,7 @@ async def test_fetch_mcp_tools_mocked(tmp_path: Path, monkeypatch: pytest.Monkey
     )
 
     mock_tool = MagicMock()
-    mock_tool.name = "kb_ask_comindware"
+    mock_tool.name = "get_knowledge_base_articles"
     mock_client = MagicMock()
     mock_client.get_tools = AsyncMock(return_value=[mock_tool])
 
@@ -194,7 +194,7 @@ async def test_fetch_mcp_tools_mocked(tmp_path: Path, monkeypatch: pytest.Monkey
         tools = await mcp_tools.fetch_mcp_tools_async()
 
     assert len(tools) == 1
-    assert tools[0].name == "kb_ask_comindware"
+    assert tools[0].name == "get_knowledge_base_articles"
 
 
 def test_build_multi_client_kwargs_drops_unsupported_kwargs() -> None:
@@ -263,7 +263,7 @@ async def test_fetch_mcp_tools_does_not_pass_unsupported_kwargs(
     )
 
     mock_tool = MagicMock()
-    mock_tool.name = "kb_ask_comindware"
+    mock_tool.name = "get_knowledge_base_articles"
     mock_client = MagicMock()
     mock_client.get_tools = AsyncMock(return_value=[mock_tool])
 
@@ -298,4 +298,4 @@ async def test_fetch_mcp_tools_does_not_pass_unsupported_kwargs(
         )
 
     assert len(tools) == 1
-    assert tools[0].name == "kb_ask_comindware"
+    assert tools[0].name == "get_knowledge_base_articles"
