@@ -138,7 +138,8 @@ def test_repeated_get_tools_returns_cached_list_without_duplication() -> None:
     first = mgr.get_tools()
     second = mgr.get_tools()
 
-    assert first is second
+    assert first is not second
+    assert all(left is right for left, right in zip(first, second, strict=True))
 
     first_names = [getattr(t, "name", None) for t in first]
     second_names = [getattr(t, "name", None) for t in second]

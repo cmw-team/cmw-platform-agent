@@ -401,7 +401,9 @@ class NativeLangChainStreaming:
             provider = provider_enum.value
 
             new_instance = agent.llm_manager.create_new_llm_instance(
-                provider, selected_index
+                provider,
+                selected_index,
+                tools=agent.tools,
             )
             if not new_instance:
                 return False

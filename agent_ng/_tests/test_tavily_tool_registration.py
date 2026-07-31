@@ -87,7 +87,8 @@ def test_enabled_configured_web_search_is_registered_once(
     names = _tool_names(manager)
     registered = [tool for tool in first if getattr(tool, "name", None) == "web_search"]
 
-    assert first is second
+    assert first is not second
+    assert all(left is right for left, right in zip(first, second, strict=True))
     assert registered == [web_search]
     assert names.count("web_search") == 1
     assert len(names) == len(set(names))
