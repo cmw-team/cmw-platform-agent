@@ -9,22 +9,11 @@ pinned: true
 hf_oauth: true
 hf_oauth_expiration_minutes: 480
 license: mit
-title: CMW Copilot
-python_version: 3.12
+title: CMW S&M Copilot
+python_version: 3.14
 ---
 
-# Comindware Analyst Copilot
-
-**Authors:**  
-
-- [**Arte(r)m Sedov**](https://github.com/arterm-sedov/)
-- [**Marat Mutalimov**](https://github.com/Dagdaf)
-
-**Repository:** [https://github.com/arterm-sedov/cmw-platform-agent](https://github.com/arterm-sedov/cmw-platform-agent)
-
-[Ask DeepWiki](https://deepwiki.com/arterm-sedov/cmw-platform-agent)
-
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/arterm-sedov/cmw-platform-agent)
+# Comindware S&M Copilot
 
 ## Overview
 
@@ -106,15 +95,9 @@ graph TD
 
 ## CMW Platform Integration
 
-The agent provides comprehensive integration with the CMW Platform through specialized tools:
+The agent provides comprehensive integration with the CMW Platform through specialized tools.
 
 ### Tool Categories
-
-**CMW Platform Tools**
-
-- **Applications & Templates**: List/create applications, manage templates, ontology/schema helpers, entity URLs, import/export
-- **Attributes**: All supported attribute types (Text, Boolean, DateTime, Decimal, Document, Drawing, Duration, Image, Record, Role, Account, Enum) plus get, create, edit, delete, archive
-- **Templates, forms, toolbars, buttons, records**: Template and record CRUD, datasets, forms, toolbars, buttons, record files
 
 **Utility Tools**
 
@@ -124,23 +107,13 @@ The agent provides comprehensive integration with the CMW Platform through speci
 - **Image/Video Processing**: Analysis, transformation, generation, combination
 - **Mathematical Operations**: Basic arithmetic and advanced functions
 
-### Example Workflows
-
-1. **Create Customer Template**: "Create a customer template with name, email, phone, and address fields"
-2. **Set Up Workflow**: "Create a workflow for customer onboarding with approval steps"
-3. **Bulk Data Import**: "Import customer data from CSV and create records"
-
 ## LLM Provider System
 
 The agent supports multiple LLM providers with manual selection:
 
 ### Supported Providers
 
-- **OpenRouter** (Default) - Multiple models with 100K-2M token limits, full tool support
-- **Google Gemini** - 1M+ token limits, excellent reasoning, full tool support  
-- **Groq** - Fast inference, 131K token limits, full tool support
-- **HuggingFace** - Local and cloud-based models, 1K-3K token limits, no tool support
-- **Mistral** - European AI models with tool support
+- **Polza** - European AI models with tool support
 - **GigaChat** - Russian language models with tool support
 
 ### Provider Management
@@ -155,18 +128,16 @@ The agent supports multiple LLM providers with manual selection:
 
 ### Prerequisites
 
-- Python 3.12+
+- Python 3.14+
 - FFmpeg with both `ffmpeg` and `ffprobe` available in the process `PATH`
 - CMW Platform access credentials
 - At least one LLM provider API key
 
 ### Installation
 
-1. **Clone and setup**:
+1. **Setup**:
 
    ```bash
-   git clone https://github.com/arterm-sedov/cmw-platform-agent
-   cd cmw-platform-agent
    pip install -r requirements.txt
    ```
 
@@ -196,9 +167,8 @@ The agent supports multiple LLM providers with manual selection:
 2. **Configure environment**:
 
    ```bash
-   export GEMINI_KEY="your_gemini_key"
-   export OPENROUTER_API_KEY="your_openrouter_key"
-   export CMW_DEFAULT_LANGUAGE="en"
+   export POLZA_API_KEY= = <YOUR_API_KEY>
+   export CMW_DEFAULT_LANGUAGE="ru"
    ```
 
 3. **Run the application**:
