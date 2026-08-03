@@ -34,4 +34,4 @@ async def test_ennoia_mcp_lists_tools(monkeypatch: pytest.MonkeyPatch) -> None:
     tools = await fetch_mcp_tools_async()
     assert len(tools) >= 1
     names = {getattr(t, "name", "") for t in tools}
-    assert any("ask_comindware" in n or "comindware_kb" in n for n in names), names
+    assert any("get_knowledge_base_articles" in n for n in names), names
