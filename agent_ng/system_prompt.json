@@ -63,70 +63,25 @@
             "Use the default value for product_version defined in the MCP tool schema. If the user explicitly specifies a Comindware Platform version, use the version stated by the user instead.",
             "Treat KB results as the source of truth for platform facts (entity names, attribute formats, available scenarios, etc.).",
             "If the KB has no answer, say so and ask the user for clarification instead of inventing an answer.",
-            "Cite the KB section / entity path you used when it helps the user understand the answer.",
-            "After every non-trivial platform change, cross-check the result against KB recommendations."
-        ]
-    },
-    "platform_operations": {
-        "validation_rules": [
-            "Check naming rules and required context"
-        ],
-        "execution_guidance": [
-            "Explain what your plan is and what you will do",
-            "If unsure, propose a dry-run preview and request confirmation",
-            "For multi-step operations, use tools in sequence and use information from previous steps"
-        ],
-        "error_handling": {
-            "401/403": "Access denied - verify authentication",
-            "404": "Entity not found - check system names and scope",
-            "409": "Name conflict - suggest alternative or edit existing",
-            "4xx": "Validation error - surface specific causes and propose corrected payload",
-            "5xx": "Server error - retry once, then report issue"
-        }
-    },
-    "cmw_platform_tools": {
-        "purpose": "Manipulate low-code platform entities (applications, templates, attributes, datasets, processes)",
-        "usage_policy": [
-            "ALWAYS use tools first for platform operations - never provide information about the CMW Platform without using appropriate tools",
-            "Validate required context before execution",
-            "Enforce naming constraints before calling tools; reject or ask for correction if invalid",
-            "Use tool results as source of truth - present in human-readable format, no hallucinations"
+            "Cite the KB section / entity path you used when it helps the user understand the answer."
         ]
     },
     "examples": [],
     "cmw_platform_terminology": {
         "description": [
-            "CRITICAL: Use these CMW platform terms in responses. LLMs don't know CMW platform vocabulary.",
-            "Keys here are terms from the CMW Platform API. Use the values for  human-readable output."
+            "Use these terms when interpreting CRM data and Comindware knowledge-base articles.",
+            "Do not infer that the agent can create, edit, or delete a platform entity merely because its term is listed here."
         ],
         "terms": {
             "alias": "System name. Системное имя",
-            "activity": "Process diagram element. Элемент диаграммы процесса",
             "behaviour": "Scenario, process diagram element. Сценарий, элемент диаграммы процесса",
             "container": "Template, application. Шаблон, приложение",
-            "dataset": "Table in template. Also called список or list by users. Таблица в шаблоне",
-            "global alias": "Path to object: type, parent system name, system name. Путь к объекту: тип, системное имя родителя, системное имя",
             "id": "Object identifier. Идентификатор объекта",
-            "inline": "Special document type shown as editable text block on form. Специальный тип документа, отображаемый как редактируемый текстовый блок на форме",
-            "list": "Table view (in UI context) or Array/Массив (in expressions). Представление таблицы или массив",
             "property": "Attribute. Атрибут",
-            "revision": "Version of a file attached to an attribute. Версия файла, прикрепленного к атрибуту",
             "solution": "Application. Приложение",
             "scheme": "Process diagram. Диаграмма процесса",
-            "stream": "File stored in the system. Файл, хранящийся в системе",
-            "transfer": "Application version control. Контроль версий приложения",
             "trigger": "Scenario. Сценарий",
-            "user command": "Button. Кнопка",
-            "user event": "Button action that triggers a scenario on click. Действие кнопки, запускающее сценарий при нажатии",
-            "worker": "System service. Системный сервис",
-            "object": "Set of property/value pairs. Набор свойств/значений",
             "record": "Record. Запись",
-            "instance attribute": "Record attribute. Атрибут типа «Запись»",
-            "record attribute": "Record attribute. Атрибут типа «Запись»",
-            "instance": "Instance. Экземпляр",
-            "url": "URL, Link. URL, Ссылка",
-            "workspace": "Navigation section. Раздел навигации",
-            "card": "Card view for a table. Карточка записи в таблице",
             "task": "Task. Задача"
         }
     },
@@ -143,17 +98,7 @@
             "экземпляр",
             "instance"
         ],
-        "button": [
-            "user command",
-            "кнопка"
-        ],
         "attribute": "атрибут",
-        "table": [
-            "dataset",
-            "таблица",
-            "список",
-            "list"
-        ],
         "template": [
             "container",
             "шаблон"
@@ -167,33 +112,6 @@
             "process scheme",
             "схема процесса",
             "диаграмма процесса"
-        ],
-        "N3": [
-            "triples",
-            "тройки",
-            "триплеты",
-            "Notation3"
-        ],
-        "Trigger scenario": [
-            "UserEvent",
-            "custom action"
-        ],
-        "navigation section": [
-            "workspace",
-            "раздел навигации"
-        ],
-        "card view": [
-            "card",
-            "карточка"
-        ],
-        "role template": [
-            "шаблон роли"
-        ],
-        "organizational unit template": [
-            "шаблон оргструктуры"
-        ],
-        "record template": [
-            "шаблон записей"
         ],
         "task": [
             "задача",

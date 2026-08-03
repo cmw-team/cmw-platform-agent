@@ -9,11 +9,11 @@ pinned: true
 hf_oauth: true
 hf_oauth_expiration_minutes: 480
 license: mit
-title: CMW Copilot
+title: "Comindware Sales & Marketing Copilot"
 python_version: 3.12
 ---
 
-# Comindware Analyst Copilot
+# Comindware Sales & Marketing Copilot
 
 **Authors:**  
 
@@ -28,24 +28,28 @@ python_version: 3.12
 
 ## Overview
 
-The Comindware Analyst Copilot is a LangChain-native AI agent designed for creating and managing entities within the CMW Platform. It translates natural language requests into CMW Platform API calls, enabling users to create templates, attributes, workflows, and business processes through conversational AI.
+The Comindware Sales & Marketing Copilot is a LangChain-native AI agent for sales teams working with Comindware Platform. It prepares lead-discovery questions, transcribes and summarizes customer meetings, reviews sales presentations, researches companies on the web, and verifies platform capabilities against the Comindware knowledge base.
 
 ### Key Capabilities
 
-- **CMW Platform Integration**: Create and manage templates, attributes, forms, and business processes
-- **Multi-Provider LLM Support**: Support for 6 LLM providers with manual selection
+- **Lead Preparation**: Read agreed lead fields by record ID and prepare exactly 10 tailored discovery questions
+- **Meeting Processing**: Convert uploaded audio/video, transcribe it through Polza, and create summary and transcript Markdown files
+- **Presentation Review**: Extract complete text from uploaded or bundled PPTX decks and prepare a slide-by-slide adaptation brief
+- **Knowledge-Backed Answers**: Search the Comindware knowledge base through MCP before confirming platform capabilities
+- **Company Research**: Search the public web through the optional Tavily integration
+- **Multi-Provider LLM Support**: Manual provider and model selection with Polza configured as the default in `.env.example`
 - **Multi-Turn Conversations**: Maintains context and tool call history across conversation turns
 - **Real-Time Streaming**: Live response streaming with tool usage visualization
-- **Session Isolation**: Each user gets isolated agent instances with proper cleanup
+- **Session Isolation**: Each user gets isolated agent, tool, skill, memory, and file-registry state
 - **Internationalization**: Full support for English and Russian UI
-- **Comprehensive Tool Suite**: 71 specialized tools
+- **Focused Tool Suite**: CRM lookup, PPTX extraction, media transcription, artifact creation, web search, and KB retrieval
 
 ### Target Use Cases
 
-- **Platform Configuration**: Automate CMW Platform setup through natural language
-- **Entity Management**: Batch creation and management of platform entities
-- **Developer Evaluation**: Assess agent capabilities for CMW Platform integration
-- **Manager Assessment**: Evaluate AI agent technology for business process automation
+- **Lead Discovery**: Adapt qualification questions to CRM data, company context, customer needs, and meeting transcripts
+- **Meeting Follow-up**: Produce structured summaries and complete transcripts from uploaded recordings
+- **Sales Presentation Preparation**: Decide which slides to keep, remove, add, or revise for a specific lead
+- **Platform Feasibility Research**: Answer implementation questions using Comindware knowledge-base articles as the source of truth
 
 ## Architecture
 
@@ -66,12 +70,15 @@ graph TD
     end
     
     subgraph "Tools (71)"
-        C1["CMW Platform<br/>47 tools"]
-        C2["Utility Tools<br/>24 tools"]
+        C1["Native tools<br/>CRM, PPTX, media, web"]
+        C2["Session skill tools<br/>load, reference, deactivate"]
     end
     
     subgraph "APIs"
-        D1["CMW Platform APIs"]
+        D1["CMW Platform API"]
+        D2["Polza API"]
+        D3["Tavily API"]
+        D4["Knowledge Base MCP"]
     end
     
     A1 --> B1
@@ -82,7 +89,9 @@ graph TD
     B1 --> C1
     B1 --> C2
     C1 --> D1
-    C2 --> D1
+    C1 --> D2
+    C1 --> D3
+    B2 --> D4
 ```
 
 ### Core Components
@@ -91,7 +100,7 @@ graph TD
 - **LLMManager** (`llm_manager.py`) - Multi-provider management with persistent instances
 - **Tool System** (`tools/`) - LangChain tools
 - **UI Layer** (`tabs/`) - Gradio modular tabs with real-time updates
-- **Session Management** (`session_manager.py`) - User isolation and cleanup
+- **Session Management** (`session_manager.py`) - User isolation and session lifecycle
 - **Error Handler** (`error_handler.py`) - Vector similarity error classification
 - **Memory Management** (`langchain_memory.py`) - LangChain-native conversation memory
 - **Streaming System** (`native_langchain_streaming.py`) - Token-by-token streaming
@@ -100,43 +109,49 @@ graph TD
 ### Key Design Decisions
 
 - **LangChain-Native**: Pure LangChain patterns ensure compatibility and future-proofing
-- **Multi-Provider Support**: Support for 6 LLM providers with manual selection and context preservation
+- **Multi-Provider Support**: Manual provider selection with context preservation
 - **Session Isolation**: User data separation and clean conversation contexts
 - **Modular Architecture**: Clear separation of concerns for maintainability
 
 ## CMW Platform Integration
 
-The agent provides comprehensive integration with the CMW Platform through specialized tools:
+The agent has a deliberately limited platform integration. It can read agreed record attributes by ID and retrieve knowledge-base articles. It does not create, edit, archive, or delete applications, templates, attributes, records, forms, scenarios, or processes.
 
 ### Tool Categories
 
-**CMW Platform Tools**
+**Native Tools**
 
-- **Applications & Templates**: List/create applications, manage templates, ontology/schema helpers, entity URLs, import/export
-- **Attributes**: All supported attribute types (Text, Boolean, DateTime, Decimal, Document, Drawing, Duration, Image, Record, Role, Account, Enum) plus get, create, edit, delete, archive
-- **Templates, forms, toolbars, buttons, records**: Template and record CRUD, datasets, forms, toolbars, buttons, record files
+- **CRM record lookup**: `tool_get_record_values` reads selected attributes from records by ID
+- **Presentation extraction**: `extract_presentation_slides` returns complete textual slide content from uploaded or bundled PPTX files
+- **Media transcription**: `transcribe_uploaded_media` converts uploaded audio/video with FFmpeg and transcribes it through Polza
+- **Meeting artifacts**: `save_meeting_markdown` creates downloadable summary and transcript files
+- **Web research**: `web_search` uses Tavily when explicitly enabled and configured
 
-**Utility Tools**
+**External MCP Tools**
 
-- **Search & Research**: Web search, Wikipedia, ArXiv, deep research
-- **Code Execution**: Multi-language support (Python, Bash, SQL, C, Java)
-- **File Analysis**: CSV, Excel, images, PDFs; image text via vision models (`analyze_image_ai`), not local OCR
-- **Image/Video Processing**: Analysis, transformation, generation, combination
-- **Mathematical Operations**: Basic arithmetic and advanced functions
+- **Knowledge base**: `get_knowledge_base_articles` retrieves Comindware articles and is the source of truth for platform capabilities
+
+**Project Skills**
+
+- `cmw-prepare-lead-questions`
+- `cmw-plan-sales-presentation`
+- `cmw-summarize-meeting`
 
 ### Example Workflows
 
-1. **Create Customer Template**: "Create a customer template with name, email, phone, and address fields"
-2. **Set Up Workflow**: "Create a workflow for customer onboarding with approval steps"
-3. **Bulk Data Import**: "Import customer data from CSV and create records"
+1. **Prepare Lead Questions**: "Lead ID 109495 — prepare questions for the next meeting"
+2. **Summarize a Meeting**: "Transcribe the attached call and prepare a summary"
+3. **Tailor a Presentation**: "Adapt the attached product deck to this customer's needs"
 
 ## LLM Provider System
 
-The agent supports multiple LLM providers with manual selection:
+The agent supports multiple LLM providers with manual selection. The active provider is selected through `AGENT_PROVIDER`; `.env.example` uses Polza.
 
 ### Supported Providers
 
-- **OpenRouter** (Default) - Multiple models with 100K-2M token limits, full tool support
+- **Polza** (default configuration) - OpenAI-compatible gateway used for the current demo and media transcription
+- **OpenRouter** - Multiple hosted models with tool support
+- **OpenAI-compatible endpoints** - Custom OpenAI-compatible model configuration
 - **Google Gemini** - 1M+ token limits, excellent reasoning, full tool support  
 - **Groq** - Fast inference, 131K token limits, full tool support
 - **HuggingFace** - Local and cloud-based models, 1K-3K token limits, no tool support
@@ -157,8 +172,8 @@ The agent supports multiple LLM providers with manual selection:
 
 - Python 3.12+
 - FFmpeg with both `ffmpeg` and `ffprobe` available in the process `PATH`
-- CMW Platform access credentials
-- At least one LLM provider API key
+- CMW Platform URL and credentials when CRM record lookup is required
+- A Polza API key for the default LLM configuration and media transcription, or another configured LLM provider key for chat
 
 ### Installation
 
@@ -196,9 +211,9 @@ The agent supports multiple LLM providers with manual selection:
 2. **Configure environment**:
 
    ```bash
-   export GEMINI_KEY="your_gemini_key"
-   export OPENROUTER_API_KEY="your_openrouter_key"
-   export CMW_DEFAULT_LANGUAGE="en"
+   export POLZA_API_KEY="your_polza_key"
+   export AGENT_PROVIDER="polza"
+   export AGENT_DEFAULT_MODEL="deepseek/deepseek-v4-flash"
    ```
 
 3. **Run the application**:
@@ -209,10 +224,14 @@ The agent supports multiple LLM providers with manual selection:
 
 ### Basic Configuration
 
-Set up your CMW Platform connection in the Config tab:
-- Platform URL
-- Username and password
-- Test connection
+Configure the runtime through `.env` (see `.env.example`):
+
+- `POLZA_API_KEY`, `AGENT_PROVIDER`, and `AGENT_DEFAULT_MODEL` for the default LLM route
+- `CMW_BASE_URL`, `CMW_LOGIN`, and `CMW_PASSWORD` for CRM record lookup
+- `CMW_MCP_ENABLED=true` to load servers from `config/mcp_servers.yaml`
+- `CMW_WEB_SEARCH_ENABLED=true` and `TAVILY_API_KEY` for web search
+
+The CRM tool only reads fields requested by the active skill; it does not provide general platform administration.
 
 ### Tavily Web Search
 
@@ -257,7 +276,7 @@ Never put a real API key in source files or logs.
 
 - LangChain-native memory management with `ConversationBufferMemory`
 - Tool call context preservation across conversation turns
-- Session-specific memory instances with automatic cleanup
+- Session-specific memory instances
 
 ### Real-Time Streaming
 
@@ -267,20 +286,19 @@ Never put a real API key in source files or logs.
 
 ### Session Isolation
 
-- User-specific agent instances with proper isolation
+- User-specific agent instances with separate tools, skills, memory, and file registries
 - Session-based file handling and resource management
-- Automatic cleanup and memory management
+- In-process session state for the lifetime of the running application; inactive-session cleanup is not yet implemented
 
 ### File Upload & Analysis
 
-The agent supports uploading and analyzing various file types through Gradio's MultimodalTextbox:
+Files uploaded through Gradio's `MultimodalTextbox` are registered in a session-isolated registry. The currently bound tools process:
 
-- **Documents**: PDF, DOCX, XLSX, PPTX, TXT, Markdown, HTML
-- **Data**: CSV, TSV, Excel (with pandas-powered analysis)
-- **Media**: Images (PNG, JPG, etc.), video, audio
-- **Code**: Python, JavaScript, SQL, and other text-based formats
+- **Presentations**: PPTX files through `extract_presentation_slides`
+- **Meeting recordings**: supported audio/video files through `transcribe_uploaded_media`
+- **Generated artifacts**: Markdown meeting summaries and transcripts through `save_meeting_markdown`
 
-Files are automatically registered in a session-isolated registry and accessible to analysis tools (`read_text_based_file`, `analyze_csv_file`, `analyze_excel_file`, `analyze_image`, etc.). See `docs/20260423_FILE_HANDLING_FIX_AND_TOOL_SCHEMA_ANALYSIS.md` for implementation details.
+Uploading another file type does not imply that the agent has a tool capable of parsing it.
 
 ### Internationalization
 
@@ -303,7 +321,7 @@ Files are automatically registered in a session-isolated registry and accessible
   - **Context**: Conversation messages (system, user, assistant) - excludes tool results
   - **Tools**: Tool result messages (ToolMessage content) returned by executed tools
   - **Overhead**: Tool schemas sent with every LLM call (constant per tool set, ~600 tokens per tool)
-- **Cost Tracking**: For OpenRouter models, cost is computed from token counts and prices fetched at startup via the endpoints API (`/models/{author}/{slug}/endpoints`). The API returns prices per token, which we convert to per 1K tokens: `cost = (input_tokens/1000)*prompt_price_per_1k + (output_tokens/1000)*completion_price_per_1k`
+- **Cost Tracking**: Uses provider-reported usage and cost data when available; provider-specific adapters normalize values for the UI
 - **Multi-Level Statistics**: 
   - Per-turn cost and token counts (displayed in chat after each QA turn, including zero cost)
   - Per-conversation totals (session-scoped) with integrated cost display
@@ -312,7 +330,7 @@ Files are automatically registered in a session-isolated registry and accessible
 - **Overhead Adjustment Factor** (`OVERHEAD_ADJUSTMENT_FACTOR = 0.8`): Heuristic factor applied to tool schema overhead to better match API-reported tokens, compensating for differences between `tiktoken` and provider tokenization
 - **Event-Driven UI Updates**: Immediate budget and cost visibility without polling
 
-**Note**: The estimate may differ from actual API tokens due to provider-specific tokenization. The overhead adjustment factor (0.8) brings estimates within 1-2% of API-reported values by accounting for these differences. See also `docs/OPENROUTER_PRICING.md` for OpenRouter-specific details.
+**Note**: Estimates may differ from billed values because tokenization and cost metadata vary by provider. API-reported values take priority when available.
 
 ### History Compression
 
@@ -363,7 +381,7 @@ Files are automatically registered in a session-isolated registry and accessible
 3. **Session Issues**
    - Clear browser cache and restart application
    - Check session isolation in debug logs
-   - Verify proper cleanup in session manager
+   - Check session isolation and lifecycle events in debug logs
 
 4. **Memory Issues**
    - Check session-specific memory instances
@@ -389,8 +407,8 @@ Check the configured log file or console output for detailed error traces and ex
 
 ### Adding New Tools
 1. Create tool function in appropriate category directory
-2. Add Pydantic models for parameters in `tools/models.py`
-3. Register tool in `tools/tools.py`
+2. Define a clear Pydantic input schema next to the tool when needed
+3. Export the tool from its category package and register that package in `LLMManager.get_tools()`
 4. Test with various LLM providers
 
 ### Adding New LLM Providers
@@ -472,7 +490,7 @@ This is an experimental research project. Contributions are welcome in the form 
    python -m pytest agent_ng/_tests/test_x.py  # Single file
    python -m pytest -k "pattern"               # Filter by name
    ```
-   Integration tests require `CMW_INTEGRATION_TESTS=1` plus a live CMW Platform server and are skipped by default.
+   Live integration tests require their explicit opt-in environment flags and access to the corresponding external service; they are skipped by default.
 
 7. **Typecheck**:
    ```bash
@@ -481,6 +499,9 @@ This is an experimental research project. Contributions are welcome in the form 
 
 ### External Services
 
-- **LLM providers**: At least one API key is needed for chat functionality (`OPENROUTER_API_KEY`, `GEMINI_KEY`, `GROQ_API_KEY`, `MISTRAL_API_KEY`, `GIGACHAT_API_KEY`, or `HUGGINGFACE_API_KEY`). See `.env.example` for all options.
-- **CMW Platform** (optional): Platform integration tools require `CMW_BASE_URL`, `CMW_LOGIN`, `CMW_PASSWORD`. Utility tools work without it.
+- **LLM providers**: At least one configured provider key is needed for chat. The current default route uses `POLZA_API_KEY`; see `.env.example` for alternatives.
+- **Polza transcription**: Meeting transcription uses `POLZA_API_KEY` and `POLZA_BASE_URL`.
+- **CMW Platform** (optional): CRM record lookup requires `CMW_BASE_URL`, `CMW_LOGIN`, and `CMW_PASSWORD`.
+- **Knowledge-base MCP** (optional): Enable with `CMW_MCP_ENABLED=true`; server configuration lives in `config/mcp_servers.yaml`.
+- **Tavily** (optional): Web research requires both `CMW_WEB_SEARCH_ENABLED=true` and `TAVILY_API_KEY`.
 - **No Docker, databases, or message queues** are required. The app is a single Python process.
