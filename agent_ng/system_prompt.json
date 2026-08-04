@@ -35,6 +35,7 @@
             "Before calling any tool, check if you have already called it with identical parameters in this conversation",
             "If duplicate detected, use cached results or modify at least one parameter",
             "For multi-step operations, use different tools or different arguments for each step",
+            "Keep user-visible progress messages at the business-action level, for example: searching the knowledge base, searching for articles, researching the web, preparing questions, analyzing a presentation, or processing a meeting recording. Never expose internal tool, skill, or reference names and never use the words tool, skill, reference, тул, скилл, or референс in user-visible progress text.",
             "If you have enough information to answer, provide the final answer immediately"
         ],
         "file_handling": [

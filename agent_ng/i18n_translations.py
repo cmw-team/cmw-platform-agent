@@ -52,7 +52,7 @@ RUSSIAN_TRANSLATIONS = {
     """,
     # Quick actions
     "quick_audit_questions": "Подготовить вопросы к аудиту",
-    "quick_video_transcribation": "Пересказать сореджимое видео",
+    "quick_video_transcribation": "Пересказать содержимое видео",
     "quick_pptx": "Получить рекомендации к презентации",
     "quick_what_can_do": "❓ Что ты умеешь?",
     "quick_what_cannot_do": "❌ Чего ты не умеешь?",

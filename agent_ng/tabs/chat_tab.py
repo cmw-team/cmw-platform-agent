@@ -10,6 +10,7 @@ Supports internationalization (i18n) with Russian and English translations.
 import asyncio
 from collections.abc import AsyncGenerator, Callable, Generator
 from datetime import datetime
+from functools import partial
 import logging
 import os
 from pathlib import Path
@@ -50,12 +51,16 @@ except ImportError:
 
 CHAT_DOWNLOADS_ENABLED = True  # Enable chat export/download functionality
 
-QUICK_ACTIONS_CONFIG: dict[str, str] = {
-    "quick_what_can_do": "quick_what_can_do_message",
-    "quick_what_cannot_do": "quick_what_cannot_do_message",
+STATIC_SKILL_ACTIONS_CONFIG: dict[str, str] = {
     "quick_video_transcribation": "quick_video_transcribation_message",
     "quick_audit_questions": "quick_audit_questions_message",
-    "quick_pptx": "quick_pptx_message"
+    "quick_pptx": "quick_pptx_message",
+}
+
+EMPTY_CHAT_EXAMPLES_CONFIG: dict[str, str] = {
+    "quick_what_can_do": "quick_what_can_do_message",
+    "quick_what_cannot_do": "quick_what_cannot_do_message",
+    **STATIC_SKILL_ACTIONS_CONFIG,
 }
 
 
@@ -91,13 +96,13 @@ def _chatbot_message_content_to_export_text(content: Any) -> str | None:
 
 
 def _build_chatbot_examples(language: str) -> list[dict[str, str]]:
-    """Build gr.Chatbot examples list from QUICK_ACTIONS_CONFIG."""
+    """Build the two suggestions shown only while the chat is empty."""
     return [
         {
             "display_text": get_translation_key(action_key, language),
             "text": get_translation_key(message_key, language),
         }
-        for action_key, message_key in QUICK_ACTIONS_CONFIG.items()
+        for action_key, message_key in EMPTY_CHAT_EXAMPLES_CONFIG.items()
     ]
 
 
@@ -106,6 +111,20 @@ def _handle_example_select(example: gr.SelectData) -> dict:
     return gr.MultimodalTextbox(
         value={"text": example.value.get("text", ""), "files": []}
     )
+
+
+def _build_static_quick_action_value(
+    message_key: str, language: str
+) -> gr.MultimodalTextbox:
+    """Fill the message box with a translated command without submitting it."""
+    return gr.MultimodalTextbox(
+        value={"text": get_translation_key(message_key, language), "files": []}
+    )
+
+
+def _build_static_quick_actions_visibility(*, visible: bool) -> dict[str, Any]:
+    """Show persistent shortcuts only after the conversation has started."""
+    return gr.update(visible=visible)
 
 
 def _skill_popup_initial_choices() -> list[tuple[str, str]]:
@@ -273,6 +292,24 @@ class ChatTab:
             elem_id="chatbot-main",
             elem_classes=["chatbot-card"],
         )
+
+        # The same shortcuts are shown inside Chatbot while the conversation is
+        # empty. This lower row becomes visible only after the first submission.
+        self.components["static_skill_action_buttons"] = {}
+        with gr.Row(
+            visible=False,
+            elem_classes=["static-skill-actions"],
+        ) as static_skill_actions_row:
+            for action_key, message_key in STATIC_SKILL_ACTIONS_CONFIG.items():
+                button = gr.Button(
+                    self._get_translation(action_key),
+                    size="sm",
+                    scale=0,
+                    min_width=180,
+                    elem_classes=["static-skill-action"],
+                )
+                self.components["static_skill_action_buttons"][message_key] = button
+        self.components["static_skill_actions_row"] = static_skill_actions_row
 
         # Slash-command popup: appears when the user starts a message with ``/``.
         # Lists every installed skill as ``<name> — <description>``. Click inserts
@@ -522,6 +559,12 @@ class ChatTab:
             queue=False,
             api_visibility="private",
         )
+        user_submit.success(
+            fn=partial(_build_static_quick_actions_visibility, visible=True),
+            outputs=[self.components["static_skill_actions_row"]],
+            queue=False,
+            api_visibility="private",
+        )
 
         # Sidebar refresh once per submit (cmw-rag avoids a second .submit() on the same component)
         trigger_ui_update = self.event_handlers.get("trigger_ui_update")
@@ -664,6 +707,12 @@ class ChatTab:
                 queue=False,
                 api_visibility="private",
             )
+            .then(
+                fn=partial(_build_static_quick_actions_visibility, visible=False),
+                outputs=[self.components["static_skill_actions_row"]],
+                queue=False,
+                api_visibility="private",
+            )
         )
 
         # Handle chatbot clear event - clear memory and reset downloads
@@ -709,6 +758,23 @@ class ChatTab:
             outputs=[self.components["msg"]],
             api_visibility="private",
         )
+
+        # Persistent scenario shortcuts only populate the textbox. They do not
+        # trigger submit, so a salesperson can add a lead ID or attach a file.
+        for message_key, button in self.components[
+            "static_skill_action_buttons"
+        ].items():
+            button.click(
+                fn=partial(
+                    _build_static_quick_action_value,
+                    message_key,
+                    self.language,
+                ),
+                inputs=[],
+                outputs=[self.components["msg"]],
+                queue=False,
+                api_visibility="private",
+            )
 
         # Slash-command popup: show/hide as the user types in the message box.
         # The handler re-reads the skill registry every keystroke so new skills
