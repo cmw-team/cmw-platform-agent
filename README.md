@@ -9,22 +9,11 @@ pinned: true
 hf_oauth: true
 hf_oauth_expiration_minutes: 480
 license: mit
-title: "Comindware Sales & Marketing Copilot"
-python_version: 3.12
+title: CMW S&M Copilot
+python_version: 3.14
 ---
 
-# Comindware Sales & Marketing Copilot
-
-**Authors:**  
-
-- [**Arte(r)m Sedov**](https://github.com/arterm-sedov/)
-- [**Marat Mutalimov**](https://github.com/Dagdaf)
-
-**Repository:** [https://github.com/arterm-sedov/cmw-platform-agent](https://github.com/arterm-sedov/cmw-platform-agent)
-
-[Ask DeepWiki](https://deepwiki.com/arterm-sedov/cmw-platform-agent)
-
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/arterm-sedov/cmw-platform-agent)
+# Comindware S&M Copilot
 
 ## Overview
 
@@ -115,19 +104,11 @@ graph TD
 
 ## CMW Platform Integration
 
-The agent has a deliberately limited platform integration. It can read agreed record attributes by ID and retrieve knowledge-base articles. It does not create, edit, archive, or delete applications, templates, attributes, records, forms, scenarios, or processes.
+The agent provides comprehensive integration with the CMW Platform through specialized tools.
 
 ### Tool Categories
 
-**Native Tools**
-
-- **CRM record lookup**: `tool_get_record_values` reads selected attributes from records by ID
-- **Presentation extraction**: `extract_presentation_slides` returns complete textual slide content from uploaded or bundled PPTX files
-- **Media transcription**: `transcribe_uploaded_media` converts uploaded audio/video with FFmpeg and transcribes it through Polza
-- **Meeting artifacts**: `save_meeting_markdown` creates downloadable summary and transcript files
-- **Web research**: `web_search` uses Tavily when explicitly enabled and configured
-
-**External MCP Tools**
+**Utility Tools**
 
 - **Knowledge base**: `get_knowledge_base_articles` retrieves Comindware articles and is the source of truth for platform capabilities
 
@@ -137,25 +118,13 @@ The agent has a deliberately limited platform integration. It can read agreed re
 - `cmw-plan-sales-presentation`
 - `cmw-summarize-meeting`
 
-### Example Workflows
-
-1. **Prepare Lead Questions**: "Lead ID 109495 — prepare questions for the next meeting"
-2. **Summarize a Meeting**: "Transcribe the attached call and prepare a summary"
-3. **Tailor a Presentation**: "Adapt the attached product deck to this customer's needs"
-
 ## LLM Provider System
 
 The agent supports multiple LLM providers with manual selection. The active provider is selected through `AGENT_PROVIDER`; `.env.example` uses Polza.
 
 ### Supported Providers
 
-- **Polza** (default configuration) - OpenAI-compatible gateway used for the current demo and media transcription
-- **OpenRouter** - Multiple hosted models with tool support
-- **OpenAI-compatible endpoints** - Custom OpenAI-compatible model configuration
-- **Google Gemini** - 1M+ token limits, excellent reasoning, full tool support  
-- **Groq** - Fast inference, 131K token limits, full tool support
-- **HuggingFace** - Local and cloud-based models, 1K-3K token limits, no tool support
-- **Mistral** - European AI models with tool support
+- **Polza** - European AI models with tool support
 - **GigaChat** - Russian language models with tool support
 
 ### Provider Management
@@ -170,18 +139,16 @@ The agent supports multiple LLM providers with manual selection. The active prov
 
 ### Prerequisites
 
-- Python 3.12+
+- Python 3.14+
 - FFmpeg with both `ffmpeg` and `ffprobe` available in the process `PATH`
 - CMW Platform URL and credentials when CRM record lookup is required
 - A Polza API key for the default LLM configuration and media transcription, or another configured LLM provider key for chat
 
 ### Installation
 
-1. **Clone and setup**:
+1. **Setup**:
 
    ```bash
-   git clone https://github.com/arterm-sedov/cmw-platform-agent
-   cd cmw-platform-agent
    pip install -r requirements.txt
    ```
 
@@ -211,9 +178,8 @@ The agent supports multiple LLM providers with manual selection. The active prov
 2. **Configure environment**:
 
    ```bash
-   export POLZA_API_KEY="your_polza_key"
-   export AGENT_PROVIDER="polza"
-   export AGENT_DEFAULT_MODEL="deepseek/deepseek-v4-flash"
+   export POLZA_API_KEY= = <YOUR_API_KEY>
+   export CMW_DEFAULT_LANGUAGE="ru"
    ```
 
 3. **Run the application**:
