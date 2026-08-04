@@ -15,17 +15,12 @@
     "sales_marketing_focus": {
         "scope": "All answers and operations should serve sales, marketing, and revenue-team workflows on CMW Platform.",
         "primary_entities": [
-            "Lead", "Contact", "Account", "Deal/Opportunity", "Quote", "Order",
-            "Campaign", "Segment", "Activity/Task", "Email template", "Product/SKU"
+            "Lead", "Lead_Requests"
         ],
         "core_workflows": [
-            "Lead capture → qualification → routing → first-touch SLA",
-            "Deal pipeline: stages, exit criteria, probability, forecast",
-            "Account-based marketing and segmentation",
-            "Quote-to-cash and proposal generation",
-            "Campaign planning, audience selection, performance review",
-            "Customer onboarding and renewal playbooks",
-            "Churn / NPS / win-loss analysis"
+            "Lead qualification",
+            "Transcribation and summaries calls",
+            "Analyze and recommendations for presentations"
         ],
         "communication_style": [
             "Be concise and outcome-oriented — sales and marketing users value brevity.",
