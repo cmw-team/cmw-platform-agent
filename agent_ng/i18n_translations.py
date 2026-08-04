@@ -245,8 +245,8 @@ ENGLISH_TRANSLATIONS = {
     # Language detection resource (fake resource for Gradio I18n)
     "language": "en",
     # App title and header
-    "app_title": "Comindware Analyst Copilot",
-    "hero_title": "Analyst Copilot",
+    "app_title": "Comindware Sales & Marketing Copilot",
+    "hero_title": "Sales & Marketing Copilot",
     # Tab labels
     "tab_home": "🏠 Home",
     "tab_chat": "💬 Chat",
@@ -257,14 +257,12 @@ ENGLISH_TRANSLATIONS = {
     # Home tab content
     "welcome_title": "Welcome!",
     "welcome_description": """
-    **Comindware Analyst Copilot** is designed to work with **Comindware Platform** entities such as applications, templates, and attributes.
-
-    The Copilot uses deterministic tools that do not rely on language models but interact with **Comindware Platform** APIs.
+    **Comindware Sales & Marketing Copilot** works with **Comindware Platform** entities such as leads, deals, campaigns, segments, and activities, and helps automate sales and marketing workflows on the low-code platform.
 
     **Key Features:**
-    - **Entity Analysis**: Deep analysis of applications, templates, and attributes in **Comindware Platform**.
-    - **Attribute Management**: Creating, editing, and deleting attributes of all types.
-    - **Localization**: The agent responds in the language of the question, but can maintain conversations in any language supported by the selected model. Internal reasoning is performed in English. The agent can create entity names in any language. The interface is translated into English and Russian languages.
+    - **Lead Qualification**: Prepare tailored questions for lead discovery meetings.
+    - **Meeting Summaries**: Transcribe and summarize customer meetings.
+    - **Presentation Review**: Analyze sales presentations and recommend improvements.
     """,
     "quick_start_title": "Quick Start",
     "quick_start_description": """
@@ -273,17 +271,9 @@ ENGLISH_TRANSLATIONS = {
      3. Enter your question or select a **template** in the sidebar and edit it, for example:
         - What can you do?
         - What can't you do?
-        - List all applications in the platform in a convenient list.
-        - Give a full audit of all applications, templates and attributes in the system.
-        - Show all record templates in the "ERP" application.
-        - Get a list of all attributes of the "Counterparties" template, application "ERP"
-        - Create a text attribute "Comment", application "HR", template "Candidates"
-        - Create a text attribute "Customer ID", application "ERP", template "Counterparties", special input mask: ([0-9]{10}|[0-9]{12})
-        - For the "Contact Phone" attribute in application "CRM", template "Leads", change the display format to Russian phone
-        - Get attribute: system name "Comment", application "HR", template "Candidates"
-        - Archive/unarchive attribute, system name "Comment", application "HR", template "Candidates"
-        - Analyze test_chart.png: what's on the chart and three main takeaways.
-        - From application "ERP", template "Counterparties" records, group by category and save infographic platform_infographic.png.
+        - Prepare discovery questions for CRM lead 109495.
+        - Summarize an attached customer meeting recording.
+        - Recommend how to tailor an attached presentation to a lead.
      4. Click **Send** and wait for the agent's response.
      5. The agent may take some time to respond, especially when accessing the **Comindware Platform**. Progress is displayed in the sidebar.
      6. When finished, the agent will show **Processing complete** message in the sidebar.
@@ -291,15 +281,14 @@ ENGLISH_TRANSLATIONS = {
     # Quick actions
     "quick_actions_title": "Templates",
     # History compression
-    "compression_enabled_label": "Щn overflow сompress conversation",
+    "compression_enabled_label": "Compress conversation on context overflow",
     "use_fallback_model_label": "On overflow use larger model",
-    "quick_list_apps": "🔎 List all apps",
-    "quick_create_attr": "🧩 Create text attribute",
-    "quick_edit_mask": "🛠️ Edit phone mask",
-    "quick_math": "🧮 15 * 23 + 7 = ?",
-    "quick_code": "💻 Python prime check function",
-    "quick_explain": "💭 Explain ML briefly",
-    "quick_full_audit": "🧾 Full system audit",
+    "quick_audit_questions": "Prepare discovery questions",
+    "quick_video_transcribation": "Summarize a meeting recording",
+    "quick_pptx": "Get presentation recommendations",
+    "quick_audit_questions_message": "/cmw-prepare-lead-questions Prepare discovery questions for CRM lead {lead ID}",
+    "quick_video_transcribation_message": "/cmw-summarize-meeting Summarize the attached customer meeting",
+    "quick_pptx_message": "/cmw-plan-sales-presentation How should I improve this presentation?",
     # Chat interface
     "chat_label": "Conversation with the Agent",
     "message_label": "Your Message",
